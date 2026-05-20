@@ -1,0 +1,231 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  USER
+  VERIFIED_TUNER
+  MODERATOR
+  ADMIN
+}
+
+enum Visibility {
+  PUBLIC
+  PRIVATE
+  UNLISTED
+}
+
+enum FileFormat {
+  BIN
+  HEX
+  FRF
+  OLS
+  XDF
+  A2L
+  DAMOS
+}
+
+enum MapType {
+  INJECTION
+  IGNITION
+  BOOST
+  LAMBDA
+  TORQUE
+  DRIVER_WISH
+  FUEL_CUTOFF
+  UNKNOWN
+}
+
+// ─── User & Auth ──────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  email     String   @unique
+  avatarUrl String?
+  bio       String?
+  role      Role     @default(USER)
+  reputation Int     @default(0)
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projects  Project[]
+  vehicles  Vehicle[]
+  likes     Like[]
+  comments  Comment[]
+  following Follow[]  @relation("following")
+  followers Follow[]  @relation("followers")
+  commits   Commit[]
+
+  @@map("users")
+}
+
+// ─── Vehicle ──────────────────────────────────────────────────────────────────
+
+model Vehicle {
+  id      String  @id @default(uuid())
+  userId  String
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  make    String
+  model   String
+  year    Int?
+  variant String?
+  engine  String?
+  ecu     String?
+
+  projects Project[]
+
+  @@map("vehicles")
+}
+
+// ─── Project ──────────────────────────────────────────────────────────────────
+
+model Project {
+  id          String     @id @default(uuid())
+  name        String
+  description String?
+  visibility  Visibility @default(PRIVATE)
+  ownerId     String
+  owner       User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  vehicleId   String?
+  vehicle     Vehicle?   @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  ecuType     String?
+  fuelType    String?
+  stage       String?
+  forkOfId    String?
+  forkOf      Project?   @relation("forks", fields: [forkOfId], references: [id], onDelete: SetNull)
+  forks       Project[]  @relation("forks")
+  branches    Branch[]
+  likes       Like[]
+  comments    Comment[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([ownerId])
+  @@index([visibility])
+  @@map("projects")
+}
+
+// ─── Version Control ──────────────────────────────────────────────────────────
+
+model Branch {
+  id        String   @id @default(uuid())
+  name      String
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  headId    String?
+  commits   Commit[]
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, name])
+  @@map("branches")
+}
+
+model Commit {
+  id            String      @id @default(uuid())
+  message       String
+  branchId      String
+  branch        Branch      @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  parentId      String?
+  parent        Commit?     @relation("commitTree", fields: [parentId], references: [id])
+  children      Commit[]    @relation("commitTree")
+  authorId      String
+  author        User        @relation(fields: [authorId], references: [id])
+  fileVersionId String
+  fileVersion   FileVersion @relation(fields: [fileVersionId], references: [id])
+  diffKey       String?
+  createdAt     DateTime    @default(now())
+
+  @@index([branchId])
+  @@map("commits")
+}
+
+model FileVersion {
+  id         String     @id @default(uuid())
+  storageKey String     @unique
+  checksum   String
+  size       Int
+  format     FileFormat
+  parsedAt   DateTime?
+  createdAt  DateTime   @default(now())
+
+  commits Commit[]
+  maps    ECUMap[]
+
+  @@map("file_versions")
+}
+
+// ─── ECU Maps ─────────────────────────────────────────────────────────────────
+
+model ECUMap {
+  id            String      @id @default(uuid())
+  fileVersionId String
+  fileVersion   FileVersion @relation(fields: [fileVersionId], references: [id], onDelete: Cascade)
+  name          String?
+  aiLabel       String?
+  type          MapType?
+  offset        Int
+  rows          Int
+  cols          Int
+  xAxisLabel    String?
+  yAxisLabel    String?
+  valueUnit     String?
+  values        Json
+  scaledValues  Json?
+  safetyFlags   Json?
+
+  @@index([fileVersionId])
+  @@index([type])
+  @@map("ecu_maps")
+}
+
+// ─── Community ────────────────────────────────────────────────────────────────
+
+model Like {
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, projectId])
+  @@map("likes")
+}
+
+model Comment {
+  id        String    @id @default(uuid())
+  content   String
+  authorId  String
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  mapId     String?
+  parentId  String?
+  parent    Comment?  @relation("replies", fields: [parentId], references: [id])
+  replies   Comment[] @relation("replies")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([projectId])
+  @@map("comments")
+}
+
+model Follow {
+  followerId  String
+  follower    User     @relation("following", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following   User     @relation("followers", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@id([followerId, followingId])
+  @@map("follows")
+}

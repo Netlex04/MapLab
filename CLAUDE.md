@@ -1,0 +1,3 @@
+- When implementing something, always refer the architecture in @docs/architecture
+- When creating new pages or components, always reference the design system @docs/design-system
+- Code must be production ready, no sketches
