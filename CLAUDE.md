@@ -1,3 +1,3 @@
 - When implementing something, always refer the architecture in @docs/architecture
-- When creating new pages or components, always reference the design system @docs/design-system
+- When creating new pages or components, always reference the design system @docs/design-system and consider using shadcn components @packages/ui
 - Code must be production ready, no sketches
