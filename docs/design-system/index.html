@@ -1,0 +1,2024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MapLab — Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* ─── TOKENS ─────────────────────────────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --bg-base:     #0B0D11;
+  --bg-elevated: #131620;
+  --bg-surface:  #1C1F29;
+  --bg-overlay:  #232736;
+  --bg-hover:    #1F2333;
+
+  /* Borders */
+  --border:        #252A38;
+  --border-subtle: #1B1F2C;
+  --border-accent: #F59E0B;
+
+  /* Text */
+  --text-primary:   #EAEDF4;
+  --text-secondary: #8C93AC;
+  --text-muted:     #555B70;
+  --text-inverse:   #0B0D11;
+
+  /* Accent — Amber (primary) */
+  --amber:        #F59E0B;
+  --amber-bright: #FBC02D;
+  --amber-dim:    rgba(245, 158, 11, 0.12);
+  --amber-glow:   rgba(245, 158, 11, 0.25);
+
+  /* Accent — Cyan (AI / info) */
+  --cyan:     #22D3EE;
+  --cyan-dim: rgba(34, 211, 238, 0.10);
+
+  /* Semantic */
+  --green:      #10B981;
+  --green-dim:  rgba(16, 185, 129, 0.12);
+  --red:        #EF4444;
+  --red-dim:    rgba(239, 68, 68, 0.12);
+  --orange:     #F97316;
+  --orange-dim: rgba(249, 115, 22, 0.12);
+  --purple:     #A855F7;
+  --purple-dim: rgba(168, 85, 247, 0.12);
+
+  /* Typography */
+  --font-display: 'Rajdhani', sans-serif;
+  --font-body:    'Outfit', sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+
+  /* Spacing */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Radius */
+  --radius-sm: 3px;
+  --radius:    5px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Shadow */
+  --shadow-sm:  0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md:  0 4px 12px rgba(0,0,0,0.5);
+  --shadow-lg:  0 8px 32px rgba(0,0,0,0.6);
+  --shadow-amber: 0 0 20px rgba(245, 158, 11, 0.15);
+  --shadow-cyan:  0 0 20px rgba(34, 211, 238, 0.12);
+}
+
+/* ─── RESET & BASE ───────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  /* Subtle grid background referencing ECU map tables */
+  background-image:
+    linear-gradient(var(--border-subtle) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-subtle) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-attachment: fixed;
+}
+
+/* ─── LAYOUT ─────────────────────────────────────────────────────────────── */
+.ds-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(11, 13, 17, 0.90);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 var(--space-8);
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  height: 52px;
+}
+
+.ds-nav-logo {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--amber);
+  text-transform: uppercase;
+  margin-right: auto;
+}
+
+.ds-nav-logo span { color: var(--text-secondary); font-weight: 400; }
+
+.ds-nav a {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-decoration: none;
+  letter-spacing: 0.02em;
+  transition: color 0.15s;
+}
+.ds-nav a:hover { color: var(--text-primary); }
+
+.ds-wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-16) var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.ds-section { display: flex; flex-direction: column; gap: var(--space-8); }
+
+.ds-section-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.ds-section-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.ds-section-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--amber);
+  letter-spacing: 0.08em;
+}
+
+.ds-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: var(--space-3);
+}
+
+.ds-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.ds-grid-2 { grid-template-columns: repeat(2, 1fr); }
+.ds-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.ds-grid-4 { grid-template-columns: repeat(4, 1fr); }
+.ds-grid-auto { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+
+/* ─── HERO ───────────────────────────────────────────────────────────────── */
+.ds-hero {
+  padding: var(--space-16) 0 var(--space-12);
+  position: relative;
+  overflow: hidden;
+}
+
+.ds-hero::before {
+  content: '';
+  position: absolute;
+  top: -80px;
+  left: -120px;
+  width: 500px;
+  height: 400px;
+  background: radial-gradient(ellipse at center, rgba(245,158,11,0.07) 0%, transparent 65%);
+  pointer-events: none;
+}
+
+.ds-hero-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--amber);
+  text-transform: uppercase;
+  margin-bottom: var(--space-4);
+}
+
+.ds-hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(48px, 6vw, 80px);
+  font-weight: 700;
+  line-height: 0.95;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  margin-bottom: var(--space-6);
+}
+
+.ds-hero-title .accent { color: var(--amber); }
+
+.ds-hero-desc {
+  font-size: 16px;
+  color: var(--text-secondary);
+  max-width: 480px;
+  line-height: 1.7;
+  margin-bottom: var(--space-8);
+}
+
+.ds-hero-meta {
+  display: flex;
+  gap: var(--space-6);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+}
+
+.ds-hero-meta span { color: var(--text-secondary); }
+
+/* ─── COLORS ─────────────────────────────────────────────────────────────── */
+.color-swatch {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.color-swatch-fill {
+  height: 72px;
+}
+
+.color-swatch-info {
+  background: var(--bg-elevated);
+  padding: var(--space-3) var(--space-4);
+}
+
+.color-swatch-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.color-swatch-value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.color-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.color-group-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.color-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.color-chip {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+
+.color-chip-info { font-size: 12px; }
+.color-chip-name { color: var(--text-primary); font-weight: 500; }
+.color-chip-hex  { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+
+/* ─── TYPOGRAPHY ─────────────────────────────────────────────────────────── */
+.type-specimen {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.type-meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--amber);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-2);
+}
+
+.type-scale-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.type-scale-row:last-child { border-bottom: none; }
+
+.type-scale-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  width: 80px;
+  flex-shrink: 0;
+  letter-spacing: 0.06em;
+}
+
+.type-scale-sample { color: var(--text-primary); }
+.type-scale-meta   { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-left: auto; }
+
+/* ─── BUTTONS ────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  height: 36px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-sm  { height: 28px; padding: 0 var(--space-3); font-size: 12px; }
+.btn-lg  { height: 44px; padding: 0 var(--space-6); font-size: 15px; }
+.btn-icon { width: 36px; padding: 0; justify-content: center; }
+.btn-icon.btn-sm { width: 28px; }
+
+.btn-primary {
+  background: var(--amber);
+  color: var(--text-inverse);
+  border-color: var(--amber);
+  font-weight: 600;
+}
+.btn-primary:hover {
+  background: var(--amber-bright);
+  box-shadow: 0 0 16px rgba(245,158,11,0.35);
+}
+
+.btn-secondary {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+.btn-secondary:hover {
+  background: var(--bg-overlay);
+  border-color: rgba(255,255,255,0.12);
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--amber);
+  border-color: rgba(245,158,11,0.4);
+}
+.btn-outline:hover {
+  background: var(--amber-dim);
+  border-color: var(--amber);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: transparent;
+}
+.btn-ghost:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.btn-destructive {
+  background: var(--red-dim);
+  color: var(--red);
+  border-color: rgba(239,68,68,0.25);
+}
+.btn-destructive:hover {
+  background: rgba(239,68,68,0.2);
+  border-color: var(--red);
+}
+
+.btn-ai {
+  background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(34,211,238,0.10));
+  color: var(--cyan);
+  border-color: rgba(34,211,238,0.2);
+}
+.btn-ai:hover {
+  background: linear-gradient(135deg, rgba(168,85,247,0.22), rgba(34,211,238,0.16));
+  border-color: rgba(34,211,238,0.4);
+  box-shadow: var(--shadow-cyan);
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn-group {
+  display: flex;
+  gap: 0;
+}
+.btn-group .btn { border-radius: 0; border-right-width: 0; }
+.btn-group .btn:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.btn-group .btn:last-child  { border-radius: 0 var(--radius) var(--radius) 0; border-right-width: 1px; }
+
+/* ─── INPUTS ─────────────────────────────────────────────────────────────── */
+.input {
+  display: block;
+  width: 100%;
+  height: 36px;
+  padding: 0 var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input::placeholder { color: var(--text-muted); }
+.input:focus {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-dim);
+}
+
+.input-mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.03em;
+}
+
+.input-error {
+  border-color: rgba(239,68,68,0.5);
+}
+.input-error:focus {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px var(--red-dim);
+}
+
+.input-group {
+  display: flex;
+}
+.input-group .input { border-radius: 0; }
+.input-group .input:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.input-group .input:last-child  { border-radius: 0 var(--radius) var(--radius) 0; }
+.input-addon {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  border-right: none;
+  border-radius: var(--radius) 0 0 var(--radius);
+  white-space: nowrap;
+}
+
+.form-field { display: flex; flex-direction: column; gap: var(--space-2); }
+.form-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+.form-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.form-error {
+  font-size: 12px;
+  color: var(--red);
+}
+
+textarea.input {
+  height: auto;
+  padding: var(--space-3);
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.5;
+}
+
+.select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238C93AC' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-3) center;
+  padding-right: var(--space-8);
+}
+
+/* ─── CARDS ──────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.card-header {
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-primary);
+}
+
+.card-body { padding: var(--space-6); }
+.card-footer {
+  padding: var(--space-4) var(--space-6);
+  border-top: 1px solid var(--border-subtle);
+  background: rgba(0,0,0,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-hover {
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.card-hover:hover {
+  border-color: rgba(255,255,255,0.10);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.card-accent-left {
+  border-left: 3px solid var(--amber);
+}
+
+/* ─── BADGES ─────────────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+
+.badge-amber   { background: var(--amber-dim);  color: var(--amber);  border-color: rgba(245,158,11,0.2); }
+.badge-cyan    { background: var(--cyan-dim);    color: var(--cyan);   border-color: rgba(34,211,238,0.2); }
+.badge-green   { background: var(--green-dim);   color: var(--green);  border-color: rgba(16,185,129,0.2); }
+.badge-red     { background: var(--red-dim);     color: var(--red);    border-color: rgba(239,68,68,0.2); }
+.badge-orange  { background: var(--orange-dim);  color: var(--orange); border-color: rgba(249,115,22,0.2); }
+.badge-purple  { background: var(--purple-dim);  color: var(--purple); border-color: rgba(168,85,247,0.2); }
+.badge-neutral { background: var(--bg-surface);  color: var(--text-secondary); border-color: var(--border); }
+
+.badge-dot::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.8;
+}
+
+/* ─── ECU DOMAIN COMPONENTS ──────────────────────────────────────────────── */
+
+/* Map Cell (2D grid value) */
+.map-grid {
+  display: grid;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.map-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  transition: background 0.1s;
+}
+
+.map-cell:hover         { background: var(--bg-hover); }
+.map-cell.cell-selected { background: var(--amber-dim); color: var(--amber); outline: 1px solid var(--amber); outline-offset: -1px; }
+.map-cell.cell-modified { background: rgba(34,211,238,0.08); color: var(--cyan); }
+.map-cell.cell-warning  { background: rgba(239,68,68,0.10); color: var(--red); }
+
+.map-cell.cell-heat-1 { background: rgba(245,158,11,0.08); }
+.map-cell.cell-heat-2 { background: rgba(245,158,11,0.16); }
+.map-cell.cell-heat-3 { background: rgba(245,158,11,0.26); }
+.map-cell.cell-heat-4 { background: rgba(245,158,11,0.38); color: var(--amber); }
+.map-cell.cell-heat-5 { background: rgba(245,158,11,0.55); color: #0B0D11; font-weight: 600; }
+
+.map-axis-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  background: var(--bg-overlay);
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+/* Hex Row */
+.hex-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 3px var(--space-4);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.hex-row:hover { background: var(--bg-hover); }
+.hex-addr { color: var(--text-muted); width: 72px; letter-spacing: 0.06em; }
+.hex-bytes { display: flex; gap: 10px; flex-wrap: wrap; }
+.hex-byte { color: var(--text-secondary); }
+.hex-byte.byte-selected { color: var(--amber); background: var(--amber-dim); border-radius: 2px; padding: 0 2px; }
+.hex-byte.byte-modified { color: var(--cyan); }
+.hex-ascii { color: var(--text-muted); margin-left: auto; letter-spacing: 0.05em; border-left: 1px solid var(--border); padding-left: var(--space-4); }
+
+/* Commit Hash */
+.commit-hash {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--cyan);
+  background: var(--cyan-dim);
+  border: 1px solid rgba(34,211,238,0.15);
+  border-radius: var(--radius-sm);
+  padding: 2px 7px;
+  letter-spacing: 0.04em;
+}
+
+/* Version timeline */
+.version-item {
+  display: flex;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  position: relative;
+}
+
+.version-item::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 36px;
+  bottom: -var(--space-4);
+  width: 1px;
+  background: var(--border);
+  bottom: -16px;
+}
+
+.version-item:last-child::before { display: none; }
+
+.version-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg-overlay);
+  border: 2px solid var(--border);
+  flex-shrink: 0;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.version-dot.dot-current { border-color: var(--amber); background: var(--amber-dim); }
+
+.version-body { flex: 1; }
+
+.version-msg {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.version-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+/* Diff indicators */
+.diff-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 3px var(--space-4);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+}
+
+.diff-line.diff-add { background: rgba(16,185,129,0.08); }
+.diff-line.diff-del { background: rgba(239,68,68,0.08); }
+.diff-indicator {
+  font-weight: 700;
+  width: 12px;
+  text-align: center;
+}
+.diff-add .diff-indicator { color: var(--green); }
+.diff-del .diff-indicator { color: var(--red); }
+.diff-add .diff-value { color: var(--green); }
+.diff-del .diff-value { color: var(--red); text-decoration: line-through; }
+.diff-map-name { color: var(--text-muted); margin-right: var(--space-2); }
+.diff-old { color: var(--red); }
+.diff-arrow { color: var(--text-muted); }
+.diff-new { color: var(--green); }
+
+/* ─── AI COPILOT ─────────────────────────────────────────────────────────── */
+.ai-panel {
+  background: linear-gradient(135deg, rgba(168,85,247,0.05) 0%, rgba(34,211,238,0.04) 100%);
+  border: 1px solid rgba(168,85,247,0.18);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.ai-panel-header {
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid rgba(168,85,247,0.12);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.ai-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(168,85,247,0.3), rgba(34,211,238,0.2));
+  border: 1px solid rgba(168,85,247,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.ai-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+
+.ai-status {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--cyan);
+  letter-spacing: 0.08em;
+}
+
+.ai-bubble {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 90%;
+}
+
+.ai-bubble-system {
+  background: rgba(34,211,238,0.07);
+  border: 1px solid rgba(34,211,238,0.12);
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-3) 0;
+}
+
+.ai-bubble-user {
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  margin: 0 0 var(--space-3) auto;
+}
+
+.ai-warning {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.2);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--red);
+  align-items: flex-start;
+}
+
+/* ─── NAVIGATION ─────────────────────────────────────────────────────────── */
+.sidebar {
+  background: var(--bg-elevated);
+  border-right: 1px solid var(--border);
+  width: 220px;
+  padding: var(--space-4) 0;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.sidebar-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: var(--space-3) var(--space-4) var(--space-1);
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 7px var(--space-4);
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.12s;
+  border-left: 2px solid transparent;
+  text-decoration: none;
+}
+.sidebar-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.sidebar-item.active {
+  background: var(--amber-dim);
+  color: var(--amber);
+  border-left-color: var(--amber);
+  font-weight: 500;
+}
+
+.sidebar-icon {
+  width: 16px;
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.7;
+}
+.sidebar-item.active .sidebar-icon { opacity: 1; }
+
+.sidebar-badge {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: var(--bg-overlay);
+  color: var(--text-muted);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+/* Tab bar */
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.tab {
+  padding: var(--space-3) var(--space-4);
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+.tab:hover { color: var(--text-secondary); }
+.tab.active { color: var(--amber); border-bottom-color: var(--amber); font-weight: 500; }
+
+/* ─── STATUS / ALERTS ────────────────────────────────────────────────────── */
+.alert {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
+  border: 1px solid;
+  font-size: 13.5px;
+  line-height: 1.5;
+  align-items: flex-start;
+}
+
+.alert-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+.alert-body { flex: 1; }
+.alert-title { font-weight: 600; margin-bottom: 3px; }
+
+.alert-info    { background: var(--cyan-dim);   border-color: rgba(34,211,238,0.2);  color: var(--cyan); }
+.alert-success { background: var(--green-dim);  border-color: rgba(16,185,129,0.2);  color: var(--green); }
+.alert-warning { background: var(--orange-dim); border-color: rgba(249,115,22,0.25); color: var(--orange); }
+.alert-danger  { background: var(--red-dim);    border-color: rgba(239,68,68,0.25);  color: var(--red); }
+
+.alert-info .alert-body  { color: var(--text-secondary); }
+.alert-success .alert-body { color: var(--text-secondary); }
+.alert-warning .alert-body { color: var(--text-secondary); }
+.alert-danger .alert-body  { color: var(--text-secondary); }
+
+.alert-info .alert-title    { color: var(--cyan); }
+.alert-success .alert-title { color: var(--green); }
+.alert-warning .alert-title { color: var(--orange); }
+.alert-danger .alert-title  { color: var(--red); }
+
+/* ─── LOADING ─────────────────────────────────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+@keyframes shimmer { to { transform: translateX(100%); } }
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--amber);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+
+.skeleton {
+  background: var(--bg-surface);
+  border-radius: var(--radius);
+  position: relative;
+  overflow: hidden;
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 50%, transparent 100%);
+  transform: translateX(-100%);
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+/* ─── UTILITY ─────────────────────────────────────────────────────────────── */
+.mono { font-family: var(--font-mono); }
+.text-amber   { color: var(--amber); }
+.text-cyan    { color: var(--cyan); }
+.text-muted   { color: var(--text-muted); }
+.text-secondary { color: var(--text-secondary); }
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: var(--space-4) 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.surface {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6);
+}
+
+.code-inline {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+  color: var(--amber);
+}
+
+/* ─── SAFE TUNE SCORE ─────────────────────────────────────────────────────── */
+.safe-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.safe-score-ring {
+  width: 80px;
+  height: 80px;
+}
+
+.safe-score-value {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--green);
+}
+
+.safe-score-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ─── PROJECT CARD ────────────────────────────────────────────────────────── */
+.project-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+
+.project-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--amber), transparent);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.project-card:hover {
+  border-color: rgba(255,255,255,0.09);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+.project-card:hover::before { opacity: 1; }
+
+.project-card-vehicle {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.project-card-ecu {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-4);
+}
+
+.project-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.project-card-stats {
+  display: flex;
+  gap: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ─── TOOLBAR ─────────────────────────────────────────────────────────────── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.toolbar-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 var(--space-1);
+}
+
+/* ─── SHADOWS SHOWCASE ────────────────────────────────────────────────────── */
+.shadow-box {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+.shadow-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+
+/* ─── RESPONSIVE ─────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .ds-grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .ds-grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .ds-nav a  { display: none; }
+}
+@media (max-width: 600px) {
+  .ds-grid-2, .ds-grid-3, .ds-grid-4 { grid-template-columns: 1fr; }
+  .ds-wrap { padding: var(--space-8) var(--space-4); }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="ds-nav">
+  <div class="ds-nav-logo">MapLab <span>DS</span></div>
+  <a href="#colors">Colors</a>
+  <a href="#typography">Type</a>
+  <a href="#buttons">Buttons</a>
+  <a href="#inputs">Inputs</a>
+  <a href="#cards">Cards</a>
+  <a href="#domain">Domain</a>
+  <a href="#navigation">Nav</a>
+</nav>
+
+<div class="ds-wrap">
+
+  <!-- HERO -->
+  <div class="ds-hero">
+    <div class="ds-hero-eyebrow">// Design System v1.0</div>
+    <h1 class="ds-hero-title">Map<span class="accent">Lab</span></h1>
+    <p class="ds-hero-desc">
+      A precision-first design language for collaborative ECU tuning.
+      Dark, technical, and built for engineers who demand accuracy.
+    </p>
+    <div class="ds-hero-meta">
+      Stack: <span>Next.js 15 · Tailwind · shadcn/ui</span>
+      &nbsp;·&nbsp; Theme: <span>Dark Only</span>
+      &nbsp;·&nbsp; Version: <span>1.0.0</span>
+    </div>
+  </div>
+
+  <!-- PHILOSOPHY -->
+  <section class="ds-section" id="philosophy">
+    <div class="ds-section-header">
+      <span class="ds-section-num">00</span>
+      <h2 class="ds-section-title">Design Philosophy</h2>
+    </div>
+    <div class="ds-grid ds-grid-3">
+      <div class="surface">
+        <div class="ds-label">Precision</div>
+        <p style="font-size:14px;color:var(--text-secondary);line-height:1.7">Every pixel earns its place. No decorative noise — only information that matters. Like a well-calibrated ECU, nothing is wasted.</p>
+      </div>
+      <div class="surface">
+        <div class="ds-label">Transparency</div>
+        <p style="font-size:14px;color:var(--text-secondary);line-height:1.7">Raw values, visible diffs, honest status. The UI never hides complexity — it makes complexity legible.</p>
+      </div>
+      <div class="surface">
+        <div class="ds-label">Authority</div>
+        <p style="font-size:14px;color:var(--text-secondary);line-height:1.7">Dark and focused. The aesthetic of diagnostic equipment and professional tooling. Not a consumer app — a craftsman's workbench.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- COLORS -->
+  <section class="ds-section" id="colors">
+    <div class="ds-section-header">
+      <span class="ds-section-num">01</span>
+      <h2 class="ds-section-title">Color System</h2>
+    </div>
+
+    <div class="ds-grid" style="grid-template-columns:1fr 2fr;gap:var(--space-8)">
+      <!-- Palette swatches -->
+      <div class="col">
+        <div class="ds-label">Primary Accent — Amber</div>
+        <div class="row" style="gap:var(--space-2)">
+          <div style="background:#FDE68A;height:40px;flex:1;border-radius:var(--radius-sm)"></div>
+          <div style="background:#FBC02D;height:40px;flex:1;border-radius:var(--radius-sm)"></div>
+          <div style="background:#F59E0B;height:40px;flex:1;border-radius:var(--radius-sm)"></div>
+          <div style="background:#D97706;height:40px;flex:1;border-radius:var(--radius-sm)"></div>
+          <div style="background:#92400E;height:40px;flex:1;border-radius:var(--radius-sm)"></div>
+        </div>
+        <div class="ds-label" style="margin-top:var(--space-2)">Secondary Accent — Cyan (AI)</div>
+        <div class="row" style="gap:var(--space-2)">
+          <div style="background:#A5F3FC;height:40px;flex:1;border-radius:var(--radius-sm)"></div>
+          <div style="background:#22D3EE;height:40px;flex:1;border-radius:var(--radius-sm)"></div>
+          <div style="background:#0891B2;height:40px;flex:1;border-radius:var(--radius-sm)"></div>
+          <div style="background:#164E63;height:40px;flex:1;border-radius:var(--radius-sm)"></div>
+        </div>
+      </div>
+
+      <!-- Color tokens table -->
+      <div>
+        <div class="ds-label">All Tokens</div>
+        <div class="surface" style="padding:0;overflow:hidden">
+          <div class="color-group" style="padding:var(--space-4) var(--space-5)">
+            <div class="color-group-title">Backgrounds</div>
+            <div class="color-row"><div class="color-chip" style="background:#0B0D11;border-color:var(--border)"></div><div class="color-chip-info"><div class="color-chip-name">bg-base</div><div class="color-chip-hex">#0B0D11 — hsl(220,26%,7%)</div></div></div>
+            <div class="color-row"><div class="color-chip" style="background:#131620"></div><div class="color-chip-info"><div class="color-chip-name">bg-elevated</div><div class="color-chip-hex">#131620 — hsl(228,23%,9%)</div></div></div>
+            <div class="color-row"><div class="color-chip" style="background:#1C1F29"></div><div class="color-chip-info"><div class="color-chip-name">bg-surface</div><div class="color-chip-hex">#1C1F29 — hsl(226,20%,13%)</div></div></div>
+            <div class="color-row"><div class="color-chip" style="background:#232736"></div><div class="color-chip-info"><div class="color-chip-name">bg-overlay</div><div class="color-chip-hex">#232736 — hsl(228,22%,17%)</div></div></div>
+          </div>
+          <div class="divider" style="margin:0"></div>
+          <div class="color-group" style="padding:var(--space-4) var(--space-5)">
+            <div class="color-group-title">Accents</div>
+            <div class="color-row"><div class="color-chip" style="background:#F59E0B"></div><div class="color-chip-info"><div class="color-chip-name">amber</div><div class="color-chip-hex">#F59E0B — hsl(38,92%,50%) — PRIMARY</div></div></div>
+            <div class="color-row"><div class="color-chip" style="background:#22D3EE"></div><div class="color-chip-info"><div class="color-chip-name">cyan</div><div class="color-chip-hex">#22D3EE — hsl(189,94%,53%) — AI/Info</div></div></div>
+            <div class="color-row"><div class="color-chip" style="background:#10B981"></div><div class="color-chip-info"><div class="color-chip-name">green</div><div class="color-chip-hex">#10B981 — hsl(160,84%,39%) — Success</div></div></div>
+            <div class="color-row"><div class="color-chip" style="background:#EF4444"></div><div class="color-chip-info"><div class="color-chip-name">red</div><div class="color-chip-hex">#EF4444 — hsl(0,84%,60%) — Danger</div></div></div>
+            <div class="color-row"><div class="color-chip" style="background:#F97316"></div><div class="color-chip-info"><div class="color-chip-name">orange</div><div class="color-chip-hex">#F97316 — hsl(25,95%,53%) — Warning</div></div></div>
+            <div class="color-row"><div class="color-chip" style="background:#A855F7"></div><div class="color-chip-info"><div class="color-chip-name">purple</div><div class="color-chip-hex">#A855F7 — hsl(271,81%,56%) — AI Special</div></div></div>
+          </div>
+          <div class="divider" style="margin:0"></div>
+          <div class="color-group" style="padding:var(--space-4) var(--space-5)">
+            <div class="color-group-title">Text</div>
+            <div class="color-row"><div class="color-chip" style="background:#EAEDF4"></div><div class="color-chip-info"><div class="color-chip-name">text-primary</div><div class="color-chip-hex">#EAEDF4 — default body text</div></div></div>
+            <div class="color-row"><div class="color-chip" style="background:#8C93AC"></div><div class="color-chip-info"><div class="color-chip-name">text-secondary</div><div class="color-chip-hex">#8C93AC — labels, secondary info</div></div></div>
+            <div class="color-row"><div class="color-chip" style="background:#555B70"></div><div class="color-chip-info"><div class="color-chip-name">text-muted</div><div class="color-chip-hex">#555B70 — placeholders, hints</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Semantic palette -->
+    <div>
+      <div class="ds-label">Semantic Usage</div>
+      <div class="ds-grid ds-grid-4">
+        <div style="background:var(--amber-dim);border:1px solid rgba(245,158,11,0.2);border-radius:var(--radius-md);padding:var(--space-4)">
+          <div style="color:var(--amber);font-weight:600;font-size:13px;margin-bottom:4px">Amber</div>
+          <div style="font-size:12px;color:var(--text-muted)">Primary actions, active states, selected elements, focus rings, CTAs</div>
+        </div>
+        <div style="background:var(--cyan-dim);border:1px solid rgba(34,211,238,0.15);border-radius:var(--radius-md);padding:var(--space-4)">
+          <div style="color:var(--cyan);font-weight:600;font-size:13px;margin-bottom:4px">Cyan</div>
+          <div style="font-size:12px;color:var(--text-muted)">AI Copilot, commit hashes, info states, modified values, links</div>
+        </div>
+        <div style="background:var(--green-dim);border:1px solid rgba(16,185,129,0.18);border-radius:var(--radius-md);padding:var(--space-4)">
+          <div style="color:var(--green);font-weight:600;font-size:13px;margin-bottom:4px">Green</div>
+          <div style="font-size:12px;color:var(--text-muted)">Safe tune score, successful validations, added diff lines, online status</div>
+        </div>
+        <div style="background:var(--red-dim);border:1px solid rgba(239,68,68,0.2);border-radius:var(--radius-md);padding:var(--space-4)">
+          <div style="color:var(--red);font-weight:600;font-size:13px;margin-bottom:4px">Red</div>
+          <div style="font-size:12px;color:var(--text-muted)">Safety warnings, out-of-range values, removed diff lines, destructive actions</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TYPOGRAPHY -->
+  <section class="ds-section" id="typography">
+    <div class="ds-section-header">
+      <span class="ds-section-num">02</span>
+      <h2 class="ds-section-title">Typography</h2>
+    </div>
+
+    <div class="ds-grid ds-grid-3">
+      <div class="type-specimen">
+        <div class="type-meta">Display — Rajdhani</div>
+        <div style="font-family:var(--font-display);font-size:36px;font-weight:700;letter-spacing:0.04em;line-height:1">Golf 7 GTI</div>
+        <div style="font-family:var(--font-display);font-size:22px;font-weight:600;letter-spacing:0.04em;color:var(--text-secondary)">Bosch MED17.5</div>
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)">Stage 1 · 98 RON</div>
+        <div class="divider"></div>
+        <p style="font-size:12px;color:var(--text-muted)">Used for: page titles, project names, vehicle labels, major headings. Technical + automotive without being kitschy.</p>
+      </div>
+      <div class="type-specimen">
+        <div class="type-meta">Body — Outfit</div>
+        <div style="font-family:var(--font-body);font-size:16px;font-weight:400;line-height:1.7;color:var(--text-secondary)">This map controls driver torque demand. Values above 1.0 may trigger overboost protection on stock hardware.</div>
+        <div class="divider"></div>
+        <div style="font-family:var(--font-body);font-size:13px;color:var(--text-muted)">Regular body copy, UI labels, descriptions. Clean and legible at all sizes.</div>
+      </div>
+      <div class="type-specimen">
+        <div class="type-meta">Mono — JetBrains Mono</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--cyan)">0x0000A4 · 0xFF 0xAB 0x12</div>
+        <div style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);margin-top:var(--space-2)">TrqLim_Driver_NM[14]</div>
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--amber);margin-top:var(--space-1)">b4f2c9a · main · 3 commits</div>
+        <div class="divider"></div>
+        <div style="font-family:var(--font-body);font-size:13px;color:var(--text-muted)">Hex addresses, map values, commit hashes, offsets, code. Consistent technical readout feel.</div>
+      </div>
+    </div>
+
+    <div class="surface">
+      <div class="ds-label">Type Scale</div>
+      <div>
+        <div class="type-scale-row">
+          <div class="type-scale-label">display-xl</div>
+          <div class="type-scale-sample" style="font-family:var(--font-display);font-size:56px;font-weight:700;letter-spacing:0.03em;line-height:1">TuneForge</div>
+          <div class="type-scale-meta">Rajdhani 700 / 56px / ls:0.03em</div>
+        </div>
+        <div class="type-scale-row">
+          <div class="type-scale-label">display-lg</div>
+          <div class="type-scale-sample" style="font-family:var(--font-display);font-size:36px;font-weight:700;letter-spacing:0.04em">Golf 7 GTI Stage 2</div>
+          <div class="type-scale-meta">Rajdhani 700 / 36px</div>
+        </div>
+        <div class="type-scale-row">
+          <div class="type-scale-label">heading</div>
+          <div class="type-scale-sample" style="font-family:var(--font-display);font-size:22px;font-weight:600;letter-spacing:0.04em">Map Overview</div>
+          <div class="type-scale-meta">Rajdhani 600 / 22px</div>
+        </div>
+        <div class="type-scale-row">
+          <div class="type-scale-label">subheading</div>
+          <div class="type-scale-sample" style="font-size:16px;font-weight:600">Torque Limiter Configuration</div>
+          <div class="type-scale-meta">Outfit 600 / 16px</div>
+        </div>
+        <div class="type-scale-row">
+          <div class="type-scale-label">body</div>
+          <div class="type-scale-sample" style="font-size:15px;color:var(--text-secondary)">The requested map is used to limit torque in specific operating conditions.</div>
+          <div class="type-scale-meta">Outfit 400 / 15px</div>
+        </div>
+        <div class="type-scale-row">
+          <div class="type-scale-label">small</div>
+          <div class="type-scale-sample" style="font-size:13px;color:var(--text-secondary)">Modified 3 minutes ago by netlex04</div>
+          <div class="type-scale-meta">Outfit 400 / 13px</div>
+        </div>
+        <div class="type-scale-row">
+          <div class="type-scale-label">label</div>
+          <div class="type-scale-sample" style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted)">ECU Type</div>
+          <div class="type-scale-meta">Outfit 700 / 11px / uppercase</div>
+        </div>
+        <div class="type-scale-row">
+          <div class="type-scale-label">mono-sm</div>
+          <div class="type-scale-sample" style="font-family:var(--font-mono);font-size:11px;color:var(--cyan)">0x00FF · b4f2c9a1 · 14×16</div>
+          <div class="type-scale-meta">JetBrains Mono 400 / 11px</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SPACING -->
+  <section class="ds-section" id="spacing">
+    <div class="ds-section-header">
+      <span class="ds-section-num">03</span>
+      <h2 class="ds-section-title">Spacing &amp; Radius</h2>
+    </div>
+    <div class="ds-grid ds-grid-2">
+      <div>
+        <div class="ds-label">Spacing Scale (4px base)</div>
+        <div class="surface" style="display:flex;flex-direction:column;gap:var(--space-3)">
+          <div style="display:flex;align-items:center;gap:var(--space-4)" v-for="">
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);width:60px">space-1</div>
+            <div style="height:12px;background:var(--amber);width:4px;border-radius:2px"></div>
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary)">4px</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:var(--space-4)">
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);width:60px">space-2</div>
+            <div style="height:12px;background:var(--amber);width:8px;border-radius:2px"></div>
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary)">8px</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:var(--space-4)">
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);width:60px">space-3</div>
+            <div style="height:12px;background:var(--amber);width:12px;border-radius:2px"></div>
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary)">12px</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:var(--space-4)">
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);width:60px">space-4</div>
+            <div style="height:12px;background:var(--amber);width:16px;border-radius:2px"></div>
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary)">16px</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:var(--space-4)">
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);width:60px">space-6</div>
+            <div style="height:12px;background:var(--amber);width:24px;border-radius:2px"></div>
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary)">24px</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:var(--space-4)">
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);width:60px">space-8</div>
+            <div style="height:12px;background:var(--amber);width:32px;border-radius:2px"></div>
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary)">32px</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:var(--space-4)">
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);width:60px">space-12</div>
+            <div style="height:12px;background:var(--amber);width:48px;border-radius:2px"></div>
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary)">48px</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:var(--space-4)">
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);width:60px">space-16</div>
+            <div style="height:12px;background:var(--amber);width:64px;border-radius:2px"></div>
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary)">64px</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="ds-label">Border Radius</div>
+        <div class="surface" style="display:flex;flex-direction:column;gap:var(--space-4)">
+          <div style="display:flex;align-items:center;gap:var(--space-5)">
+            <div style="width:48px;height:32px;background:var(--bg-overlay);border:1px solid var(--border);border-radius:3px"></div>
+            <div><div style="font-size:12px;font-weight:600">radius-sm — 3px</div><div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">Badges, inline chips, mono code</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:var(--space-5)">
+            <div style="width:48px;height:32px;background:var(--bg-overlay);border:1px solid var(--border);border-radius:5px"></div>
+            <div><div style="font-size:12px;font-weight:600">radius — 5px</div><div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">Buttons, inputs, small elements</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:var(--space-5)">
+            <div style="width:48px;height:32px;background:var(--bg-overlay);border:1px solid var(--border);border-radius:8px"></div>
+            <div><div style="font-size:12px;font-weight:600">radius-md — 8px</div><div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">Dropdowns, tooltips, toolbars</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:var(--space-5)">
+            <div style="width:48px;height:32px;background:var(--bg-overlay);border:1px solid var(--border);border-radius:12px"></div>
+            <div><div style="font-size:12px;font-weight:600">radius-lg — 12px</div><div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">Cards, panels, modals, surfaces</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:var(--space-5)">
+            <div style="width:48px;height:32px;background:var(--bg-overlay);border:1px solid var(--border);border-radius:16px"></div>
+            <div><div style="font-size:12px;font-weight:600">radius-xl — 16px</div><div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">Feature cards, hero sections</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:var(--space-5)">
+            <div style="width:32px;height:32px;background:var(--bg-overlay);border:1px solid var(--border);border-radius:50%"></div>
+            <div><div style="font-size:12px;font-weight:600">full — 9999px</div><div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">Avatars, dot indicators</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BUTTONS -->
+  <section class="ds-section" id="buttons">
+    <div class="ds-section-header">
+      <span class="ds-section-num">04</span>
+      <h2 class="ds-section-title">Buttons</h2>
+    </div>
+
+    <div class="surface">
+      <div class="ds-label">Variants</div>
+      <div class="row" style="flex-wrap:wrap;gap:var(--space-3)">
+        <button class="btn btn-primary">Commit Changes</button>
+        <button class="btn btn-secondary">View Diff</button>
+        <button class="btn btn-outline">Fork Project</button>
+        <button class="btn btn-ghost">Cancel</button>
+        <button class="btn btn-destructive">Reset to Base</button>
+        <button class="btn btn-ai">✦ Ask Copilot</button>
+      </div>
+    </div>
+
+    <div class="surface">
+      <div class="ds-label">Sizes</div>
+      <div class="row" style="flex-wrap:wrap;align-items:center;gap:var(--space-3)">
+        <button class="btn btn-primary btn-lg">Large</button>
+        <button class="btn btn-primary">Default</button>
+        <button class="btn btn-primary btn-sm">Small</button>
+      </div>
+    </div>
+
+    <div class="surface">
+      <div class="ds-label">States &amp; Groups</div>
+      <div class="col">
+        <div class="row" style="flex-wrap:wrap;gap:var(--space-3)">
+          <button class="btn btn-primary" disabled>Disabled</button>
+          <button class="btn btn-secondary" disabled>Disabled</button>
+          <button class="btn btn-outline" disabled>Disabled</button>
+        </div>
+        <div class="row" style="flex-wrap:wrap;gap:var(--space-3)">
+          <div class="btn-group">
+            <button class="btn btn-secondary">Hex</button>
+            <button class="btn btn-primary">2D Map</button>
+            <button class="btn btn-secondary">3D View</button>
+            <button class="btn btn-secondary">Diff</button>
+          </div>
+        </div>
+        <div class="row" style="flex-wrap:wrap;gap:var(--space-3)">
+          <button class="btn btn-secondary"><span class="spinner" style="width:14px;height:14px;border-width:1.5px"></span> Parsing ECU…</button>
+          <button class="btn btn-primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Save Version
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INPUTS -->
+  <section class="ds-section" id="inputs">
+    <div class="ds-section-header">
+      <span class="ds-section-num">05</span>
+      <h2 class="ds-section-title">Inputs &amp; Forms</h2>
+    </div>
+
+    <div class="ds-grid ds-grid-2">
+      <div class="surface">
+        <div class="ds-label">Text Input</div>
+        <div class="col">
+          <div class="form-field">
+            <label class="form-label">Project Name</label>
+            <input class="input" type="text" placeholder="Golf 7 GTI Stage 1">
+          </div>
+          <div class="form-field">
+            <label class="form-label">ECU Address (Hex)</label>
+            <input class="input input-mono" type="text" placeholder="0x0000A4">
+            <div class="form-hint">Enter the absolute byte offset</div>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Commit Message</label>
+            <input class="input input-error" type="text" value="updated stuff">
+            <div class="form-error">Commit message must be descriptive (min. 10 chars)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="surface">
+        <div class="ds-label">Select &amp; Textarea</div>
+        <div class="col">
+          <div class="form-field">
+            <label class="form-label">Fuel Type</label>
+            <select class="input select">
+              <option>98 RON</option>
+              <option>95 RON</option>
+              <option>E85</option>
+              <option>E10</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Version Notes</label>
+            <textarea class="input" placeholder="Describe the changes in this version…"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="surface" style="grid-column:span 2">
+        <div class="ds-label">Input with Prefix / Search</div>
+        <div class="col">
+          <div class="input-group">
+            <div class="input-addon">0x</div>
+            <input class="input input-mono" style="border-radius:0 var(--radius) var(--radius) 0" type="text" placeholder="00A4B2">
+          </div>
+          <div style="position:relative">
+            <svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input class="input" style="padding-left:36px" type="text" placeholder="Search maps… (e.g. Torque Limiter)">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CARDS -->
+  <section class="ds-section" id="cards">
+    <div class="ds-section-header">
+      <span class="ds-section-num">06</span>
+      <h2 class="ds-section-title">Cards &amp; Surfaces</h2>
+    </div>
+
+    <div class="ds-grid ds-grid-3">
+      <!-- Project Card -->
+      <div class="project-card">
+        <div class="project-card-vehicle">Golf 7 GTI</div>
+        <div class="project-card-ecu">Bosch MED17.5.21 · 0261S19xxx</div>
+        <div class="project-card-meta">
+          <span class="badge badge-amber">Stage 2</span>
+          <span class="badge badge-green badge-dot">Safe</span>
+          <span class="badge badge-neutral">98 RON</span>
+        </div>
+        <div class="project-card-stats">
+          <span>↑ 47 forks</span>
+          <span>★ 312</span>
+          <span>v14 · 3d ago</span>
+        </div>
+      </div>
+
+      <!-- Standard Card -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Version History</div>
+          <span class="commit-hash">b4f2c9a</span>
+        </div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:0">
+          <div class="version-item">
+            <div class="version-dot dot-current"></div>
+            <div class="version-body">
+              <div class="version-msg">Reduce torque limiter at WOT</div>
+              <div class="version-meta"><span>b4f2c9a</span><span>netlex04</span><span>2h ago</span></div>
+            </div>
+          </div>
+          <div class="version-item">
+            <div class="version-dot"></div>
+            <div class="version-body">
+              <div class="version-msg">Initial Stage 1 tune</div>
+              <div class="version-meta"><span>a1d9e82</span><span>netlex04</span><span>3d ago</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Card -->
+      <div class="ai-panel">
+        <div class="ai-panel-header">
+          <div class="ai-icon">✦</div>
+          <div class="ai-panel-title">AI Copilot</div>
+          <div class="ai-status">ACTIVE</div>
+        </div>
+        <div style="padding:var(--space-4);display:flex;flex-direction:column;gap:var(--space-3)">
+          <div class="ai-bubble ai-bubble-system">
+            <strong style="color:var(--cyan)">Map detected:</strong> TrqLim_Driver_NM — Controls driver torque request. Values above <code class="code-inline">480 Nm</code> may trigger limp mode on stock transmission.
+          </div>
+          <div class="ai-warning">
+            <span>⚠</span>
+            <span>Lambda target at row 4 appears critically lean (0.78λ). Verify against fuel system capacity.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BADGES & STATUS -->
+  <section class="ds-section">
+    <div class="ds-section-header">
+      <span class="ds-section-num">07</span>
+      <h2 class="ds-section-title">Badges &amp; Status</h2>
+    </div>
+
+    <div class="surface">
+      <div class="ds-label">Badge Variants</div>
+      <div class="row" style="flex-wrap:wrap;gap:var(--space-2)">
+        <span class="badge badge-amber">Stage 2</span>
+        <span class="badge badge-green badge-dot">Verified</span>
+        <span class="badge badge-red badge-dot">Warning</span>
+        <span class="badge badge-cyan">AI Reviewed</span>
+        <span class="badge badge-orange">Modified</span>
+        <span class="badge badge-purple">Copilot</span>
+        <span class="badge badge-neutral">98 RON</span>
+        <span class="badge badge-neutral">Bosch MED17</span>
+      </div>
+    </div>
+
+    <div class="surface">
+      <div class="ds-label">Alerts</div>
+      <div class="col">
+        <div class="alert alert-info">
+          <div class="alert-icon">ℹ</div>
+          <div class="alert-body">
+            <div class="alert-title">AI Analysis Available</div>
+            Copilot has detected 3 maps that match this vehicle's known tuning patterns.
+          </div>
+        </div>
+        <div class="alert alert-success">
+          <div class="alert-icon">✓</div>
+          <div class="alert-body">
+            <div class="alert-title">Checksum Valid</div>
+            All checksums passed. File is safe to commit.
+          </div>
+        </div>
+        <div class="alert alert-warning">
+          <div class="alert-icon">⚠</div>
+          <div class="alert-body">
+            <div class="alert-title">Boost Request High</div>
+            Map <span class="code-inline">BoostReq_mbar[8x16]</span> exceeds typical Stage 2 values by 18%. Verify intercooler capacity.
+          </div>
+        </div>
+        <div class="alert alert-danger">
+          <div class="alert-icon">⛔</div>
+          <div class="alert-body">
+            <div class="alert-title">Safety Check Failed</div>
+            Lambda target <span class="code-inline">0.72λ</span> at rows 6–8 is critically lean. This file cannot be published without correction.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DOMAIN-SPECIFIC: ECU & Maps -->
+  <section class="ds-section" id="domain">
+    <div class="ds-section-header">
+      <span class="ds-section-num">08</span>
+      <h2 class="ds-section-title">Domain Components</h2>
+    </div>
+
+    <div class="ds-grid ds-grid-2">
+      <!-- 2D Map Grid -->
+      <div>
+        <div class="ds-label">2D Map View — Torque Limiter (5×5 excerpt)</div>
+        <div class="card" style="overflow:auto">
+          <div style="padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:space-between">
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--amber)">TrqLim_Driver_NM[14×16]</div>
+            <div style="display:flex;gap:var(--space-2)">
+              <span class="badge badge-cyan">Modified</span>
+              <span class="badge badge-amber">Selected</span>
+            </div>
+          </div>
+          <div style="padding:var(--space-4)">
+            <div class="map-grid" style="grid-template-columns:48px repeat(5,1fr)">
+              <div class="map-axis-label">rpm↓ \ load→</div>
+              <div class="map-axis-label">20%</div>
+              <div class="map-axis-label">40%</div>
+              <div class="map-axis-label">60%</div>
+              <div class="map-axis-label">80%</div>
+              <div class="map-axis-label">100%</div>
+
+              <div class="map-axis-label">1000</div>
+              <div class="map-cell">180</div>
+              <div class="map-cell">200</div>
+              <div class="map-cell">240</div>
+              <div class="map-cell">280</div>
+              <div class="map-cell cell-heat-1">310</div>
+
+              <div class="map-axis-label">2000</div>
+              <div class="map-cell">200</div>
+              <div class="map-cell">240</div>
+              <div class="map-cell cell-modified">295</div>
+              <div class="map-cell cell-heat-2">350</div>
+              <div class="map-cell cell-heat-3">390</div>
+
+              <div class="map-axis-label">3500</div>
+              <div class="map-cell">220</div>
+              <div class="map-cell">265</div>
+              <div class="map-cell cell-heat-2">330</div>
+              <div class="map-cell cell-heat-3">400</div>
+              <div class="map-cell cell-heat-4">440</div>
+
+              <div class="map-axis-label">5000</div>
+              <div class="map-cell">210</div>
+              <div class="map-cell">255</div>
+              <div class="map-cell cell-heat-3">360</div>
+              <div class="map-cell cell-selected">420</div>
+              <div class="map-cell cell-heat-5">480</div>
+
+              <div class="map-axis-label">6500</div>
+              <div class="map-cell">190</div>
+              <div class="map-cell">230</div>
+              <div class="map-cell cell-heat-2">310</div>
+              <div class="map-cell cell-warning">398</div>
+              <div class="map-cell cell-heat-4">450</div>
+            </div>
+            <div style="margin-top:var(--space-3);display:flex;gap:var(--space-4);font-family:var(--font-mono);font-size:10px;color:var(--text-muted)">
+              <span style="color:var(--amber)">▪ selected</span>
+              <span style="color:var(--cyan)">▪ modified</span>
+              <span style="color:var(--red)">▪ warning</span>
+              <span>▪ heatmap</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hex View -->
+      <div>
+        <div class="ds-label">Hex View</div>
+        <div class="card" style="overflow:auto">
+          <div style="padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border-subtle)">
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">Offset: <span style="color:var(--amber)">0x0000A4</span> · Bosch MED17</span>
+          </div>
+          <div>
+            <div class="hex-row">
+              <div class="hex-addr">0x0000A0</div>
+              <div class="hex-bytes">
+                <span class="hex-byte">4D</span><span class="hex-byte">45</span><span class="hex-byte">44</span><span class="hex-byte">31</span>
+                <span class="hex-byte">37</span><span class="hex-byte byte-selected">FF</span><span class="hex-byte byte-selected">AB</span><span class="hex-byte">00</span>
+              </div>
+              <div class="hex-ascii">MED17..</div>
+            </div>
+            <div class="hex-row" style="background:rgba(245,158,11,0.04)">
+              <div class="hex-addr" style="color:var(--amber)">0x0000A8</div>
+              <div class="hex-bytes">
+                <span class="hex-byte byte-modified">C8</span><span class="hex-byte byte-modified">C8</span><span class="hex-byte">E0</span><span class="hex-byte">F0</span>
+                <span class="hex-byte">10</span><span class="hex-byte">0A</span><span class="hex-byte">FF</span><span class="hex-byte">FF</span>
+              </div>
+              <div class="hex-ascii">........</div>
+            </div>
+            <div class="hex-row">
+              <div class="hex-addr">0x0000B0</div>
+              <div class="hex-bytes">
+                <span class="hex-byte">00</span><span class="hex-byte">1E</span><span class="hex-byte">3C</span><span class="hex-byte">5A</span>
+                <span class="hex-byte">78</span><span class="hex-byte">96</span><span class="hex-byte">B4</span><span class="hex-byte">D2</span>
+              </div>
+              <div class="hex-ascii">........</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Diff View -->
+        <div style="margin-top:var(--space-4)">
+          <div class="ds-label">Diff View</div>
+          <div class="card">
+            <div style="padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border-subtle);display:flex;gap:var(--space-3);align-items:center">
+              <span class="commit-hash">a1d9e82</span>
+              <span style="color:var(--text-muted);font-size:12px">→</span>
+              <span class="commit-hash">b4f2c9a</span>
+              <span style="font-size:12px;color:var(--text-muted);margin-left:auto">2 maps changed</span>
+            </div>
+            <div style="padding:var(--space-4);display:flex;flex-direction:column;gap:var(--space-2)">
+              <div class="diff-line diff-del">
+                <span class="diff-indicator">−</span>
+                <span class="diff-map-name">TrqLim_Driver</span>
+                <span class="diff-value">row[3][4]: 380 → <span style="color:var(--green)">420</span></span>
+              </div>
+              <div class="diff-line diff-add">
+                <span class="diff-indicator">+</span>
+                <span class="diff-map-name">TrqLim_Driver</span>
+                <span class="diff-value" style="color:var(--green)">row[3][4]: 420</span>
+              </div>
+              <div class="diff-line diff-del">
+                <span class="diff-indicator">−</span>
+                <span class="diff-map-name">BoostReq_mbar</span>
+                <span class="diff-value">row[2][6]: 2100 → <span style="color:var(--green)">2250</span></span>
+              </div>
+              <div class="diff-line diff-add">
+                <span class="diff-indicator">+</span>
+                <span class="diff-map-name">BoostReq_mbar</span>
+                <span class="diff-value" style="color:var(--green)">row[2][6]: 2250</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- NAVIGATION -->
+  <section class="ds-section" id="navigation">
+    <div class="ds-section-header">
+      <span class="ds-section-num">09</span>
+      <h2 class="ds-section-title">Navigation</h2>
+    </div>
+
+    <div class="ds-grid ds-grid-2">
+      <div>
+        <div class="ds-label">Sidebar</div>
+        <div class="sidebar">
+          <div class="sidebar-group-label">Workspace</div>
+          <a class="sidebar-item active" href="#">
+            <span class="sidebar-icon">⊞</span> Dashboard
+          </a>
+          <a class="sidebar-item" href="#">
+            <span class="sidebar-icon">◈</span> Projects
+            <span class="sidebar-badge">12</span>
+          </a>
+          <a class="sidebar-item" href="#">
+            <span class="sidebar-icon">◉</span> Explore
+          </a>
+          <div class="sidebar-group-label" style="margin-top:var(--space-2)">Active Project</div>
+          <a class="sidebar-item" href="#">
+            <span class="sidebar-icon">⬡</span> Overview
+          </a>
+          <a class="sidebar-item" href="#">
+            <span class="sidebar-icon">⌗</span> Map Editor
+          </a>
+          <a class="sidebar-item" href="#">
+            <span class="sidebar-icon">⏱</span> Versions
+            <span class="sidebar-badge">14</span>
+          </a>
+          <a class="sidebar-item" href="#">
+            <span class="sidebar-icon">✦</span> Copilot
+          </a>
+        </div>
+      </div>
+
+      <div class="col">
+        <div>
+          <div class="ds-label">Tab Bar</div>
+          <div class="tabs">
+            <div class="tab active">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+              2D Map
+            </div>
+            <div class="tab">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg>
+              3D View
+            </div>
+            <div class="tab">HEX</div>
+            <div class="tab">Diff</div>
+          </div>
+          <div style="background:var(--bg-elevated);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius-md) var(--radius-md);padding:var(--space-4);font-size:13px;color:var(--text-muted)">Tab content area</div>
+        </div>
+
+        <div>
+          <div class="ds-label">Toolbar</div>
+          <div class="toolbar">
+            <button class="btn btn-ghost btn-sm btn-icon" title="Undo">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+            </button>
+            <button class="btn btn-ghost btn-sm btn-icon" title="Redo">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transform:scaleX(-1)"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+            </button>
+            <div class="toolbar-sep"></div>
+            <button class="btn btn-ghost btn-sm">Interpolate</button>
+            <button class="btn btn-ghost btn-sm">Smooth</button>
+            <div class="toolbar-sep"></div>
+            <button class="btn btn-ai btn-sm">✦ Suggest</button>
+            <div style="margin-left:auto">
+              <button class="btn btn-primary btn-sm">Commit</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOADING STATES -->
+  <section class="ds-section">
+    <div class="ds-section-header">
+      <span class="ds-section-num">10</span>
+      <h2 class="ds-section-title">Loading &amp; Feedback</h2>
+    </div>
+
+    <div class="ds-grid ds-grid-3">
+      <div class="surface">
+        <div class="ds-label">Spinner</div>
+        <div class="row">
+          <div class="spinner"></div>
+          <span style="font-size:13px;color:var(--text-secondary)">Parsing ECU binary…</span>
+        </div>
+      </div>
+      <div class="surface">
+        <div class="ds-label">Skeleton</div>
+        <div class="col">
+          <div class="skeleton" style="height:16px;width:60%"></div>
+          <div class="skeleton" style="height:12px;width:90%"></div>
+          <div class="skeleton" style="height:12px;width:75%"></div>
+        </div>
+      </div>
+      <div class="surface">
+        <div class="ds-label">Progress</div>
+        <div class="col">
+          <div style="font-size:12px;color:var(--text-secondary)">Uploading · 73%</div>
+          <div style="background:var(--bg-overlay);border-radius:99px;height:6px;overflow:hidden">
+            <div style="background:var(--amber);height:100%;width:73%;border-radius:99px;box-shadow:0 0 8px rgba(245,158,11,0.4)"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SHADOWS -->
+  <section class="ds-section">
+    <div class="ds-section-header">
+      <span class="ds-section-num">11</span>
+      <h2 class="ds-section-title">Shadows &amp; Effects</h2>
+    </div>
+    <div class="ds-grid ds-grid-4">
+      <div class="shadow-box" style="box-shadow:var(--shadow-sm)">
+        <div class="shadow-label">shadow-sm</div>
+        <div style="font-size:12px;color:var(--text-muted)">Inline elements</div>
+      </div>
+      <div class="shadow-box" style="box-shadow:var(--shadow-md)">
+        <div class="shadow-label">shadow-md</div>
+        <div style="font-size:12px;color:var(--text-muted)">Cards on hover</div>
+      </div>
+      <div class="shadow-box" style="box-shadow:var(--shadow-amber)">
+        <div class="shadow-label">shadow-amber</div>
+        <div style="font-size:12px;color:var(--text-muted)">Active / Focus</div>
+      </div>
+      <div class="shadow-box" style="box-shadow:var(--shadow-cyan)">
+        <div class="shadow-label">shadow-cyan</div>
+        <div style="font-size:12px;color:var(--text-muted)">AI elements</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+</body>
+</html>
