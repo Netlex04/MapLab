@@ -137,22 +137,26 @@ enum FileFormat {
 ### ECU Maps
 
 ```prisma
-model Map {
+model ECUMap {
   id            String      @id @default(uuid())
   fileVersionId String
-  fileVersion   FileVersion @relation(fields: [fileVersionId], references: [id])
+  fileVersion   FileVersion @relation(fields: [fileVersionId], references: [id], onDelete: Cascade)
   name          String?
-  aiLabel       String?     // KI-erkannter Name
+  aiLabel       String?
   type          MapType?
-  offset        Int         // Byte-Offset in der Datei
+  offset        Int
   rows          Int
   cols          Int
   xAxisLabel    String?
   yAxisLabel    String?
   valueUnit     String?
-  values        Json        // 2D-Array der Rohwerte
-  scaledValues  Json?       // Skalierte Werte (Faktor/Offset angewendet)
-  safetyFlags   Json?       // Ergebnisse der Plausibilitätsprüfung
+  values        Json
+  scaledValues  Json?
+  safetyFlags   Json?
+
+  @@index([fileVersionId])
+  @@index([type])
+  @@map("ecu_maps")
 }
 
 enum MapType {
@@ -243,7 +247,7 @@ CREATE INDEX idx_project_search ON projects USING gin(to_tsvector('english', nam
 -- Map-Embeddings für Ähnlichkeitssuche
 CREATE TABLE map_embeddings (
   map_id     UUID REFERENCES maps(id),
-  embedding  vector(1536),  -- OpenAI / Claude Embedding-Dimension
+  embedding  vector(1024),  -- Voyage AI (voyage-3), Anthropic-empfohlener Embedding-Provider
   model      TEXT
 );
 CREATE INDEX ON map_embeddings USING ivfflat (embedding vector_cosine_ops);

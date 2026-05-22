@@ -104,14 +104,16 @@ NEXT_PUBLIC_3D_ENABLED=false  # Phase 2
 ```
 maplab/
 ├── apps/
-│   ├── web/                 # Next.js App
-│   └── ecu-engine/          # Python FastAPI Service
+│   └── web/                     # Next.js App
+├── services/
+│   └── ecu-engine/              # Python FastAPI Service
 ├── packages/
-│   ├── ecu-parser/          # Rust → WASM
-│   ├── ecu-parser-wasm/     # Generiertes WASM-Package
-│   ├── db/                  # Prisma Schema + Migrations
-│   ├── ui/                  # Shared shadcn/ui Komponenten
-│   └── types/               # Shared TypeScript Types
+│   ├── ecu-parser/              # Rust → WASM (ab Phase 2)
+│   ├── ecu-parser-wasm/         # Generiertes WASM-Package (JS-Stub bis Phase 2)
+│   ├── db/                      # Prisma Schema + Migrations
+│   ├── ui/                      # Shared shadcn/ui Komponenten
+│   ├── types/                   # Shared TypeScript Types
+│   └── typescript-config/       # Geteilte tsconfig-Presets
 ├── turbo.json
 ├── package.json
 └── pnpm-workspace.yaml
@@ -124,12 +126,17 @@ maplab/
 ```yaml
 # .github/workflows/ci.yml
 jobs:
-  typecheck:    # tsc --noEmit
-  lint:         # ESLint + Ruff (Python)
-  test:         # Vitest + Pytest
-  wasm-build:   # wasm-pack build
-  deploy:       # Vercel (automatisch via GitHub Integration)
-  deploy-ecu:   # Railway Deploy bei main-Push
+  typecheck:      # tsc --noEmit (Next.js + Packages)
+  lint:           # ESLint (Next.js + Packages)
+  build:          # Next.js Build (gates on typecheck + lint)
+  python-lint:    # Ruff (services/ecu-engine)
+  python-test:    # Pytest (services/ecu-engine)
+
+# Noch nicht konfiguriert (folgt mit Phase 2):
+#   wasm-build:   # wasm-pack build (packages/ecu-parser)
+#   deploy-ecu:   # Railway Deploy bei main-Push
+
+# Vercel-Deploy läuft automatisch via GitHub Integration (kein expliziter Job nötig)
 ```
 
 ---
