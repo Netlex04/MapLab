@@ -148,6 +148,22 @@ export async function getProject(id: string): Promise<ProjectDetail | null> {
 
   if (!raw) return null
 
+  // Self-healing: projects created before auto-branch got no main branch.
+  // Create it lazily here so upstream code always has at least one branch.
+  if (raw.branches.length === 0) {
+    const branch = await prisma.branch.create({
+      data: { name: 'main', projectId: raw.id },
+      select: {
+        id: true,
+        name: true,
+        headId: true,
+        createdAt: true,
+        _count: { select: { commits: true } },
+      },
+    })
+    raw.branches = [branch]
+  }
+
   return {
     id: raw.id,
     ownerId: raw.ownerId,
