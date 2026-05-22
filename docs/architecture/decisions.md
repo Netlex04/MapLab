@@ -60,6 +60,10 @@ Kurze Begründungen für die wichtigsten technischen Entscheidungen.
 
 **Begründung**: Kein Egress-Cost ist entscheidend — ECU-Dateien werden häufig heruntergeladen (Community-Sharing). Bei 10.000 Downloads à 1MB wären AWS S3 Egress-Kosten ~$0.09/GB, R2 = $0.
 
+**MVP-Abweichung (temporär)**: Aktuell wird **Supabase Storage** verwendet, da R2 noch nicht als Infrastruktur aufgesetzt ist und Supabase ohne neue Credentials sofort nutzbar war. Die gesamte Upload-Logik ist in einer einzigen Funktion (`uploadCommit` in `apps/web/src/app/actions/projects.ts`) isoliert — der Swap zu R2 ist ein reiner Infrastruktur-Tausch ohne App-Code-Änderungen außerhalb dieser Funktion.
+
+**Migration zu R2**: Cloudflare-Account + Bucket + API-Token → Env-Vars setzen → `uploadCommit` auf `@aws-sdk/client-s3` (S3-kompatible R2-API) umstellen.
+
 ---
 
 ## ADR-007: pnpm + Turborepo als Monorepo-Tooling
