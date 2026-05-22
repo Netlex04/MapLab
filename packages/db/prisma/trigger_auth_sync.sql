@@ -28,7 +28,7 @@ BEGIN
     final_username := base_username || '_' || counter;
   END LOOP;
 
-  INSERT INTO public.users (id, email, username, created_at, updated_at)
+  INSERT INTO public.users (id, email, username, "createdAt", "updatedAt")
   VALUES (NEW.id, NEW.email, final_username, NOW(), NOW());
 
   RETURN NEW;
