@@ -7,6 +7,7 @@
     "jsx": "preserve",
     "plugins": [{ "name": "next" }],
     "allowJs": true,
-    "incremental": true
+    "incremental": true,
+    "allowArbitraryExtensions": true
   }
 }
