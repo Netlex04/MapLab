@@ -110,17 +110,42 @@ async def export_file(ecu: ECUData, format: ExportFormat) -> bytes:
     """Konvertierung zwischen Formaten"""
 ```
 
-### ECU-Erkennung
+### ECU-Erkennung (MVP: MS4X-Plattform)
+
+Der MVP unterstützt ausschließlich die Siemens MS4X-Familie. Fingerprinting via Dateigröße, bekannte Byte-Sequenzen und Checksummen-Offset-Struktur.
 
 ```python
 # Fingerprinting via bekannte Byte-Sequenzen + Dateistruktur
 ECU_SIGNATURES = {
-    "Bosch MED17.5": {
-        "magic_bytes": b"\x01\x02...",
-        "size_range": (512_000, 2_048_000),
-        "checksum_offsets": [0x3FFF8, 0x7FFF8],
+    # --- MVP: Siemens MS4X ---
+    "Siemens MS42": {
+        "size_range": (512_000, 512_000),   # exakt 512 KB
+        "sw_version_offset": 0x7F020,       # ASCII Softwareversions-String
+        "checksum_offsets": [0x7FF00],
+        "identifier": b"MS42",
     },
-    # ...
+    "Siemens MS43": {
+        "size_range": (524_288, 524_288),   # exakt 512 KB (0x80000)
+        "sw_version_offset": 0x7F020,
+        "checksum_offsets": [0x7FF00, 0x7FF04],
+        "identifier": b"MS43",
+    },
+    "Siemens MS45": {
+        "size_range": (1_048_576, 1_048_576),  # exakt 1 MB
+        "sw_version_offset": 0xFF020,
+        "checksum_offsets": [0xFFF00],
+        "identifier": b"MS45",
+    },
+    "Siemens GS20": {
+        "size_range": (262_144, 524_288),   # 256 KB – 512 KB
+        "sw_version_offset": 0x3F020,
+        "checksum_offsets": [0x3FF00],
+        "identifier": b"GS20",
+    },
+
+    # --- Post-MVP ---
+    # "Bosch ME7.2": { ... },
+    # "Bosch MED17.5": { ... },
 }
 ```
 
@@ -128,15 +153,22 @@ ECU_SIGNATURES = {
 
 ## Unterstützte Formate
 
+### MVP (MS4X-relevant)
+
 | Format | WASM | Python | Beschreibung |
 |---|---|---|---|
-| **BIN** | Vollständig | Vollständig | Rohes ECU-Binary |
+| **BIN** | Vollständig | Vollständig | Rohes ECU-Binary – primäres MS4X-Format |
 | **HEX** | Vollständig | Vollständig | Intel HEX / Motorola S-Record |
-| **XDF** | Lesen | Lesen/Schreiben | TunerPro Definitionsdatei |
+| **DAMOS** | - | Lesen | Siemens Map-Definitionen – MS42/MS43/MS45 spezifisch |
+| **XDF** | Lesen | Lesen/Schreiben | TunerPro Definitionsdatei – Community-Standard für MS4X |
 | **A2L** | Teilweise | Vollständig | ASAP2 Beschreibungsdatei |
-| **FRF** | - | Vollständig | Flash Read File (VAG) |
+
+### Post-MVP
+
+| Format | WASM | Python | Beschreibung |
+|---|---|---|---|
+| **FRF** | - | Vollständig | Flash Read File (VAG-spezifisch) |
 | **OLS** | - | Vollständig | WinOLS Projektformat |
-| **DAMOS** | - | Lesen | Siemens/Continental Map-Definitionen |
 
 ---
 

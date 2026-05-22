@@ -6,14 +6,33 @@
 
 ---
 
+# 0. MVP-Scope
+
+## Unterstützte ECUs im MVP
+
+Der MVP fokussiert sich **ausschließlich** auf die **Siemens MS4X-Plattform**:
+
+| ECU | Motor | Fahrzeuge |
+|---|---|---|
+| **Siemens MS42** | BMW M52TU | E46 318i/320i/323i/328i, E39 520i/523i/528i |
+| **Siemens MS43** | BMW M54 | E46 320i/325i/330i, E39 520i/525i/530i, Z3/Z4 |
+| **Siemens MS45** | BMW S54 / M54 | E46 M3, E85/E86 Z4, E39 M5 (MS45.1) |
+| **Siemens GS20** | SMG-Getriebesteuerung | E46 M3 SMG, E39 M5 SMG |
+
+**Begründung:** Die MS4X-Plattform hat eine aktive, technisch versierte Community (ms4x.net, diverse BMW-Foren), verbreitete Open-Source-Dokumentation der Steuergerätstruktur, und ist ein idealer Startpunkt für tiefen, qualitativ hochwertigen Support statt oberflächlicher Breitenabdeckung.
+
+Weitere ECUs werden in späteren Phasen ergänzt (z.B. Bosch ME7, Bosch MED17, VAG-spezifische ECUs).
+
+---
+
 # 1. Vision
 
-Eine moderne webbasierte Plattform für ECU-Tuning-Dateien, die:
+Eine moderne webbasierte Plattform für das Tuning von **Siemens MS4X Steuergeräten** (MS42, MS43, MS45, GS20), die:
 
 - ECU-Dateien direkt im Browser editierbar macht
-- Community-Sharing ermöglicht
+- Community-Sharing innerhalb der MS4X/BMW-Community ermöglicht
 - Versionierung & Collaboration integriert
-- KI-gestützte Analyse und Assistenz bietet
+- KI-gestützte Analyse und Assistenz speziell für MS4X-Maps bietet
 - sicherer, transparenter und verständlicher als bestehende Tools ist
 
 Ziel ist eine Kombination aus:
@@ -23,25 +42,30 @@ Ziel ist eine Kombination aus:
 - VSCode Copilot
 - WinOLS/TunerPro
 
-für ECU-Tuning.
+für ECU-Tuning — gestartet mit der MS4X-Plattform als tiefem, qualitätsorientiertem Kern.
 
 ---
 
 # 2. Zielgruppen
 
-## Primär
+## Primär (MVP)
 
-- Hobby-Tuner
-- Semi-professionelle Tuner
-- ECU-Mapper
-- Chiptuning-Werkstätten
+- BMW E46 / E39 Hobby-Tuner mit MS4X Steuergerät
+- Semi-professionelle MS4X-Tuner
+- ECU-Mapper für BMW M52TU/M54/S54 Motoren
+- Chiptuning-Werkstätten mit BMW-Fokus
 
-## Sekundär
+## Sekundär (MVP)
 
-- Lernende / Anfänger
-- Automotive-YouTuber
-- Performance-Communities
-- Motorsport-Projekte
+- Lernende der MS4X-Plattform (Einsteiger in BMW-Tuning)
+- BMW-Automotive-YouTuber & Performance-Creator
+- E46/E39-Performance-Communities
+- Motorsport-Projekte (E46 M3, E46 Race Cars)
+
+## Langfristig (Post-MVP)
+
+- Breitere Tuning-Community über MS4X hinaus
+- Andere Fahrzeugmarken & ECU-Plattformen
 
 ---
 
@@ -95,12 +119,12 @@ Ein Projekt enthält:
 - Kommentare
 - Fahrzeugdaten
 
-## Beispiel
+## Beispiel (MVP)
 
 Projekt:
 
-- Golf 7 GTI
-- Bosch MED17
+- BMW E46 330i
+- Siemens MS43
 - Stage 1
 - 98 Oktan
 
@@ -108,21 +132,23 @@ Projekt:
 
 # 4.3 File Upload
 
-## Unterstützte Formate
+## Unterstützte Formate (MVP – MS4X)
 
-- BIN
-- HEX
-- FRF
-- OLS
-- XDF
-- A2L
-- DAMOS
+| Format | Priorität | Beschreibung |
+|---|---|---|
+| **BIN** | Pflicht | Rohes ECU-Binary (primäres Format für MS4X) |
+| **HEX** | Pflicht | Intel HEX / Motorola S-Record |
+| **DAMOS** | Hoch | Siemens/Continental Map-Definitionen (MS42/MS43/MS45 spezifisch) |
+| **XDF** | Mittel | TunerPro Definitionsdatei (Community-Standard für MS4X) |
+| **A2L** | Niedrig | ASAP2-Format |
+| FRF | Post-MVP | Flash Read File (VAG-spezifisch, nicht MS4X) |
+| OLS | Post-MVP | WinOLS Projektformat |
 
 ## Upload-Prozess
 
 1. Datei hochladen
-2. ECU erkennen
-3. Softwareversion identifizieren
+2. ECU erkennen (MS42 / MS43 / MS45 / GS20 via Fingerprinting)
+3. Softwareversion identifizieren (z.B. MS43 SW7550460)
 4. Metadaten extrahieren
 5. Projekt anlegen
 
@@ -380,30 +406,38 @@ Provision auf:
 
 # 9. Roadmap
 
-# Phase 1 – MVP
+# Phase 1 – MVP (MS4X-fokussiert)
 
-- Upload
+**ECU-Support:** Siemens MS42, MS43, MS45, GS20
+
+- Upload & Fingerprinting für MS4X ECUs
 - Hex Viewer
-- 2D Maps
-- Community
-- Kommentare
+- 2D Map-Ansicht mit MS4X-spezifischen Map-Definitionen (via DAMOS/XDF)
+- Community-Plattform für MS4X-Tuner
+- Kommentare & Projekt-Sharing
+- Checksum-Validierung (MS4X-spezifische Algorithmen)
+- Forking & Versionierung (Git-Modell)
 
 # Phase 2
 
-- AI Analyse / Copilot
+**ECU-Support:** + erste Erweiterung (z.B. Bosch ME7.2, ME9)
+
+- AI Analyse / Copilot (zunächst MS4X-optimiert)
 - 3D Maps
 - Live Collaboration
-- Forking
-- Versionierung
 
 # Phase 3
 
+**ECU-Support:** + Bosch MED17, VAG-Plattformen
+
 - Marketplace
-- AI Copilot Advanced
+- AI Copilot Advanced (ECU-übergreifend)
 - Realtime Logs
 - Dyno Integration
 
 # Phase 4
+
+**ECU-Support:** Breit
 
 - OBD/Flasher Integration
 - Mobile App

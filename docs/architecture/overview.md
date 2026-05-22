@@ -53,9 +53,9 @@ MapLab (TuneForge) ist eine webbasierte ECU-Tuning-Plattform. Die Architektur fo
 
 ## Phasenplanung
 
-| Phase | Architektur-Fokus |
-|---|---|
-| MVP | Monolith, Next.js Full-Stack, Supabase |
-| Phase 2 | AI-Service auslagern, WebSocket-Layer |
-| Phase 3 | Marketplace-Service, Payment-Integration |
-| Phase 4 | Mobile App (React Native), OBD-Bridge |
+| Phase | ECU-Scope | Architektur-Fokus |
+|---|---|---|
+| MVP | Siemens MS42, MS43, MS45, GS20 | Monolith, Next.js Full-Stack, Supabase |
+| Phase 2 | + Bosch ME7.x | AI-Service auslagern, WebSocket-Layer |
+| Phase 3 | + Bosch MED17, VAG | Marketplace-Service, Payment-Integration |
+| Phase 4 | Breit | Mobile App (React Native), OBD-Bridge |
