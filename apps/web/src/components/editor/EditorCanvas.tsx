@@ -3,6 +3,7 @@
 import { Binary, Box, GitCompare } from 'lucide-react'
 import { useEditorStore } from '@/lib/editor/store'
 import { Map2DView } from './views/Map2DView'
+import { HexView } from './views/HexView'
 
 // ─── Placeholder-Karten für nicht-implementierte Views ────────────────────────
 
@@ -88,13 +89,7 @@ export function EditorCanvas() {
     case 'map-2d':
       return <Map2DView />
     case 'hex':
-      return (
-        <ViewPlaceholder
-          icon={Binary}
-          label="Hex View"
-          description="Wird in Schritt 6 implementiert."
-        />
-      )
+      return <HexView />
     case 'map-3d':
       return (
         <ViewPlaceholder
