@@ -370,3 +370,71 @@ export async function uploadCommit(
   revalidatePath(`/projects/${projectId}`)
   return null
 }
+
+// ─── Editor Commit ──────────────────────────────────────────────────────────────
+
+export type EditorCommitState = { error: string } | null
+
+export async function commitEditorChanges(
+  projectId: string,
+  branchId: string,
+  binBase64: string,
+  message: string,
+): Promise<EditorCommitState> {
+  const user = await getAuthUser()
+  if (!user) return { error: 'Not authenticated' }
+  if (!message.trim()) return { error: 'Commit message is required' }
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { ownerId: true },
+  })
+  if (!project || project.ownerId !== user.id) return { error: 'Project not found or access denied' }
+
+  const branch = await prisma.branch.findUnique({
+    where: { id: branchId },
+    select: { headId: true, projectId: true },
+  })
+  if (!branch || branch.projectId !== projectId) return { error: 'Branch not found' }
+
+  const buffer = Buffer.from(binBase64, 'base64')
+  const checksum = createHash('sha256').update(buffer).digest('hex')
+  const storageKey = `${projectId}/${checksum}.bin`
+
+  const supabase = await createClient()
+  const { error: uploadError } = await supabase.storage
+    .from('ecu-files')
+    .upload(storageKey, buffer, { contentType: 'application/octet-stream', upsert: false })
+
+  if (uploadError && uploadError.message !== 'The resource already exists') {
+    return { error: `Storage upload failed: ${uploadError.message}` }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    let fileVersion = await tx.fileVersion.findUnique({
+      where: { storageKey },
+      select: { id: true },
+    })
+    if (!fileVersion) {
+      fileVersion = await tx.fileVersion.create({
+        data: { storageKey, checksum, size: buffer.length, format: 'BIN' },
+        select: { id: true },
+      })
+    }
+    const commit = await tx.commit.create({
+      data: {
+        message,
+        branchId,
+        parentId: branch.headId,
+        authorId: user.id,
+        fileVersionId: fileVersion.id,
+      },
+      select: { id: true },
+    })
+    await tx.branch.update({ where: { id: branchId }, data: { headId: commit.id } })
+    await tx.project.update({ where: { id: projectId }, data: { updatedAt: new Date() } })
+  })
+
+  revalidatePath(`/projects/${projectId}`)
+  return null
+}

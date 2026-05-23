@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { Button } from '@/components/ui/button'
 import {
   getProject,
   getBranchCommits,
@@ -66,10 +67,12 @@ function ProjectHeader({
   project,
   isOwner,
   selectedBranch,
+  hasCommits,
 }: {
   project: ProjectDetail
   isOwner: boolean
   selectedBranch: BranchWithCount | undefined
+  hasCommits: boolean
 }) {
   const ownerSlug = project.owner.username ?? project.ownerId.slice(0, 8)
 
@@ -129,9 +132,18 @@ function ProjectHeader({
         </div>
 
         {/* CTA */}
-        {isOwner && selectedBranch && (
-          <UploadDialog projectId={project.id} branchId={selectedBranch.id} />
-        )}
+        <div className="flex items-center gap-2">
+          {hasCommits && selectedBranch && (
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`/projects/${project.id}/editor?branch=${selectedBranch.id}`}>
+                ◫ Open Editor
+              </Link>
+            </Button>
+          )}
+          {isOwner && selectedBranch && (
+            <UploadDialog projectId={project.id} branchId={selectedBranch.id} />
+          )}
+        </div>
       </div>
 
       {/* Stats strip */}
@@ -318,7 +330,12 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
 
   return (
     <div className="mx-auto max-w-5xl px-8 py-10">
-      <ProjectHeader project={project} isOwner={isOwner} selectedBranch={selectedBranch} />
+      <ProjectHeader
+        project={project}
+        isOwner={isOwner}
+        selectedBranch={selectedBranch}
+        hasCommits={commits.length > 0}
+      />
 
       {project.branches.length > 1 && (
         <BranchTabs
