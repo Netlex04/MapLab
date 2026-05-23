@@ -119,7 +119,7 @@ export async function computeDiff(base: Uint8Array, modified: Uint8Array): Promi
 
 async function computeChecksumFallback(buffer: Uint8Array): Promise<string> {
   if (typeof crypto !== 'undefined' && crypto.subtle) {
-    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer)
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer as unknown as BufferSource)
     return Array.from(new Uint8Array(hashBuffer))
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('')
