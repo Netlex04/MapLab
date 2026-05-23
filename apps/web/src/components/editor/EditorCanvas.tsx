@@ -1,7 +1,8 @@
 'use client'
 
-import { Grid2x2, Binary, Box, GitCompare } from 'lucide-react'
+import { Binary, Box, GitCompare } from 'lucide-react'
 import { useEditorStore } from '@/lib/editor/store'
+import { Map2DView } from './views/Map2DView'
 
 // ─── Placeholder-Karten für nicht-implementierte Views ────────────────────────
 
@@ -85,13 +86,7 @@ export function EditorCanvas() {
   // status === 'ready'
   switch (activeView) {
     case 'map-2d':
-      return (
-        <ViewPlaceholder
-          icon={Grid2x2}
-          label="2D Map View"
-          description="Wird in Schritt 5 implementiert."
-        />
-      )
+      return <Map2DView />
     case 'hex':
       return (
         <ViewPlaceholder
