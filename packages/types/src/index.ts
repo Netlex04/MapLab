@@ -158,6 +158,28 @@ export interface BinaryDiff {
   totalChangedBytes: number
 }
 
+// ─── Editor Types ─────────────────────────────────────────────────────────────
+
+export type EditorStatus = 'idle' | 'parsing' | 'ready' | 'error'
+
+export interface CellRef {
+  mapId: string
+  row: number
+  col: number
+}
+
+export interface UndoEntry {
+  mapId: string
+  before: number[][]
+  after: number[][]
+}
+
+export interface SafetyHighlight {
+  row: number
+  col: number
+  severity: SafetySeverity
+}
+
 // ─── AI Copilot Types ─────────────────────────────────────────────────────────
 
 export interface MapClassificationResult {
