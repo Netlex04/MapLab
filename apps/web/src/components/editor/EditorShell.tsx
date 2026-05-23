@@ -6,6 +6,7 @@ import { useEditorStore } from '@/lib/editor/store'
 import { EditorToolbar } from './EditorToolbar'
 import { EditorSidebar } from './EditorSidebar'
 import { EditorCanvas } from './EditorCanvas'
+import { CommitDialog } from './CommitDialog'
 
 // ─── Status Bar ───────────────────────────────────────────────────────────────
 
@@ -67,9 +68,10 @@ function EditorStatusBar() {
 interface EditorShellProps {
   projectId: string
   projectName: string
+  branchId: string
 }
 
-export function EditorShell({ projectId: _projectId, projectName }: EditorShellProps) {
+export function EditorShell({ projectId, projectName, branchId }: EditorShellProps) {
   const [commitDialogOpen, setCommitDialogOpen] = useState(false)
 
   const handleCommit = useCallback(() => {
@@ -89,27 +91,12 @@ export function EditorShell({ projectId: _projectId, projectName }: EditorShellP
 
       <EditorStatusBar />
 
-      {/* CommitDialog wird in Schritt 7 implementiert */}
-      {commitDialogOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-          onClick={() => setCommitDialogOpen(false)}
-        >
-          <div
-            className="bg-card border border-border rounded-lg p-6 w-96 shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="text-sm font-medium">Commit-Dialog</p>
-            <p className="text-xs text-muted-foreground mt-1">Wird in Schritt 7 implementiert.</p>
-            <button
-              className="mt-4 text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => setCommitDialogOpen(false)}
-            >
-              Schließen
-            </button>
-          </div>
-        </div>
-      )}
+      <CommitDialog
+        open={commitDialogOpen}
+        onClose={() => setCommitDialogOpen(false)}
+        projectId={projectId}
+        branchId={branchId}
+      />
     </div>
   )
 }

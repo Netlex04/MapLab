@@ -12,5 +12,8 @@ export default async function EditorPage({ params }: EditorPageProps) {
 
   if (!project) notFound()
 
-  return <EditorShell projectId={id} projectName={project.name} />
+  // Default to main branch (first branch by creation date)
+  const branchId = project.branches[0]?.id ?? ''
+
+  return <EditorShell projectId={id} projectName={project.name} branchId={branchId} />
 }
