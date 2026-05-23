@@ -11,12 +11,14 @@ Zuständig für:
 Start: uvicorn main:app --reload --port 8000
 """
 
-from fastapi import FastAPI, UploadFile, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 import hashlib
 import os
+
+from fingerprint import fingerprint_binary, FingerprintResult
 
 app = FastAPI(
     title="MapLab ECU Engine",
@@ -34,8 +36,8 @@ app.add_middleware(
 
 # ─── Auth ─────────────────────────────────────────────────────────────────────
 
-def verify_internal_secret(x_internal_secret: str = None):
-    expected = os.getenv("ECU_PARSER_SECRET", "dev-secret")
+def verify_internal_secret(x_internal_secret: Optional[str] = Header(default=None)):
+    expected: str = os.getenv("ECU_PARSER_SECRET", "dev-secret")
     if x_internal_secret != expected:
         raise HTTPException(status_code=403, detail="Unauthorized")
 
@@ -65,9 +67,14 @@ class DiffResult(BaseModel):
     total_changed_bytes: int
 
 class ECUMetadata(BaseModel):
-    detected_ecu: Optional[str]
+    detected_ecu: Optional[str] = None
+    engine: Optional[str] = None
+    vehicles: Optional[str] = None
+    sw_version: Optional[str] = None
     confidence: float
+    detection_method: str
     size: int
+    size_ok: bool
     checksum: str
     format: str
     map_count: int
@@ -102,25 +109,28 @@ def health():
     return {"status": "ok", "service": "ecu-engine"}
 
 
+@app.post("/fingerprint", response_model=ECUMetadata)
 @app.post("/parse/metadata", response_model=ECUMetadata)
 async def parse_metadata(
     file: UploadFile,
     _: None = Depends(verify_internal_secret),
 ):
-    """Grundlegende ECU-Erkennung und Metadaten-Extraktion."""
+    """ECU-Erkennung und Metadaten-Extraktion via Fingerprinting."""
     content = await file.read()
-    checksum = hashlib.sha256(content).hexdigest()
-
-    # TODO: Echte ECU-Fingerprinting-Logik
-    detected_ecu = _detect_ecu(content)
+    fp = fingerprint_binary(content)
 
     return ECUMetadata(
-        detected_ecu=detected_ecu,
-        confidence=0.0 if detected_ecu is None else 0.7,
-        size=len(content),
-        checksum=checksum,
+        detected_ecu=fp.ecu_type,
+        engine=fp.engine,
+        vehicles=fp.vehicles,
+        sw_version=fp.sw_version,
+        confidence=fp.confidence,
+        detection_method=fp.detection_method,
+        size=fp.size_bytes,
+        size_ok=fp.size_ok,
+        checksum=hashlib.sha256(content).hexdigest(),
         format=_detect_format(file.filename or ""),
-        map_count=0,  # Vollständiges Parsing in /parse/full
+        map_count=0,
     )
 
 
@@ -237,17 +247,6 @@ async def safety_check(
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
-
-_ECU_SIGNATURES: dict[str, dict] = {
-    # Werden schrittweise ergänzt
-}
-
-def _detect_ecu(content: bytes) -> Optional[str]:
-    for ecu_name, sig in _ECU_SIGNATURES.items():
-        magic = sig.get("magic_bytes", b"")
-        if magic and content[:len(magic)] == magic:
-            return ecu_name
-    return None
 
 def _detect_format(filename: str) -> str:
     ext = filename.rsplit(".", 1)[-1].upper() if "." in filename else "BIN"

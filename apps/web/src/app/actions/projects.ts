@@ -262,7 +262,7 @@ export async function uploadCommit(
   // Verify project ownership
   const project = await prisma.project.findUnique({
     where: { id: projectId },
-    select: { ownerId: true },
+    select: { ownerId: true, ecuType: true },
   })
   if (!project || project.ownerId !== user.id) {
     return { error: 'Project not found or access denied' }
@@ -280,6 +280,33 @@ export async function uploadCommit(
   const buffer = Buffer.from(await file.arrayBuffer())
   const checksum = createHash('sha256').update(buffer).digest('hex')
   const storageKey = `${projectId}/${checksum}.${ext}`
+
+  // Fingerprint the binary to auto-fill ecuType on the project (non-blocking — failures are ignored)
+  let detectedEcuType: string | null = null
+  if (!project.ecuType) {
+    const ecuUrl = process.env.ECU_PARSER_URL
+    const ecuSecret = process.env.ECU_PARSER_SECRET ?? 'dev-secret'
+    if (ecuUrl) {
+      try {
+        const fp = new FormData()
+        fp.append('file', new Blob([buffer], { type: 'application/octet-stream' }), file.name)
+        const res = await fetch(`${ecuUrl}/fingerprint`, {
+          method: 'POST',
+          headers: { 'x-internal-secret': ecuSecret },
+          body: fp,
+          signal: AbortSignal.timeout(8_000),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.confidence >= 0.8 && data.detected_ecu) {
+            detectedEcuType = data.detected_ecu as string
+          }
+        }
+      } catch {
+        // non-fatal — proceed without fingerprint
+      }
+    }
+  }
 
   // TODO (ADR-006): migrate to Cloudflare R2 — swap this block for @aws-sdk/client-s3
   // Supabase Storage is used temporarily; R2 is the target (no egress cost at scale).
@@ -333,7 +360,10 @@ export async function uploadCommit(
 
     await tx.project.update({
       where: { id: projectId },
-      data: { updatedAt: new Date() },
+      data: {
+        updatedAt: new Date(),
+        ...(detectedEcuType ? { ecuType: detectedEcuType } : {}),
+      },
     })
   })
 

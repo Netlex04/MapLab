@@ -1,0 +1,12 @@
+services:
+  ecu-engine:
+    build:
+      context: ./services/ecu-engine
+    ports:
+      - "8000:8000"
+    environment:
+      ENV: development
+      ECU_PARSER_SECRET: dev-secret
+    volumes:
+      - ./services/ecu-engine:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
