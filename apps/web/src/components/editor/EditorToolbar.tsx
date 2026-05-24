@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Undo2, Redo2, GitCommitHorizontal, Cpu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -24,13 +25,14 @@ const VIEWS: { id: View; label: string }[] = [
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface EditorToolbarProps {
+  projectId: string
   projectName: string
   onCommit: () => void
   copilotOpen: boolean
   onToggleCopilot: () => void
 }
 
-export function EditorToolbar({ projectName, onCommit, copilotOpen, onToggleCopilot }: EditorToolbarProps) {
+export function EditorToolbar({ projectId, projectName, onCommit, copilotOpen, onToggleCopilot }: EditorToolbarProps) {
   const activeView = useEditorStore((s) => s.activeView)
   const setActiveView = useEditorStore((s) => s.setActiveView)
   const isDirty = useEditorStore((s) => s.isDirty)
@@ -44,7 +46,16 @@ export function EditorToolbar({ projectName, onCommit, copilotOpen, onToggleCopi
 
   return (
     <header className="flex h-12 shrink-0 items-center border-b border-border bg-card px-3 gap-2">
-      {/* Left — project breadcrumb */}
+      {/* Left — back + project breadcrumb */}
+      <Link
+        href={`/projects/${projectId}`}
+        className="font-mono text-label uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground shrink-0"
+      >
+        ← Projekt
+      </Link>
+
+      <Separator orientation="vertical" className="h-5" />
+
       <div className="flex items-center gap-2 min-w-0 mr-2">
         <Cpu className="size-3.5 shrink-0 text-amber-400" />
         <span className="font-mono text-label text-muted-foreground truncate max-w-36">

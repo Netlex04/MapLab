@@ -111,6 +111,7 @@ export function EditorShell({ projectId, projectName, branchId }: EditorShellPro
   return (
     <div className="flex flex-col h-full bg-background">
       <EditorToolbar
+        projectId={projectId}
         projectName={projectName}
         onCommit={handleCommit}
         copilotOpen={copilotOpen}
