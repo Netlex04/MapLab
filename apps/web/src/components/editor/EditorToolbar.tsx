@@ -26,9 +26,11 @@ const VIEWS: { id: View; label: string }[] = [
 interface EditorToolbarProps {
   projectName: string
   onCommit: () => void
+  copilotOpen: boolean
+  onToggleCopilot: () => void
 }
 
-export function EditorToolbar({ projectName, onCommit }: EditorToolbarProps) {
+export function EditorToolbar({ projectName, onCommit, copilotOpen, onToggleCopilot }: EditorToolbarProps) {
   const activeView = useEditorStore((s) => s.activeView)
   const setActiveView = useEditorStore((s) => s.setActiveView)
   const isDirty = useEditorStore((s) => s.isDirty)
@@ -45,7 +47,7 @@ export function EditorToolbar({ projectName, onCommit }: EditorToolbarProps) {
       {/* Left — project breadcrumb */}
       <div className="flex items-center gap-2 min-w-0 mr-2">
         <Cpu className="size-3.5 shrink-0 text-amber-400" />
-        <span className="font-mono text-[11px] text-muted-foreground truncate max-w-36">
+        <span className="font-mono text-label text-muted-foreground truncate max-w-36">
           {projectName}
         </span>
         {isDirty && (
@@ -121,10 +123,10 @@ export function EditorToolbar({ projectName, onCommit }: EditorToolbarProps) {
         <Separator orientation="vertical" className="h-5 mx-1" />
 
         <Button
-          variant="ghost"
+          variant={copilotOpen ? 'ai' : 'ghost'}
           size="sm"
-          className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 text-xs h-8 gap-1.5"
-          disabled
+          className="h-8 text-xs gap-1.5 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10"
+          onClick={onToggleCopilot}
         >
           <span className="text-[10px]">✦</span>
           Copilot

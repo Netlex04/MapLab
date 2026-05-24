@@ -1,4 +1,14 @@
+networks:
+  maplab:
+
+volumes:
+  web_modules:   # preserves pnpm store across container restarts
+  web_next:      # preserves .next build cache
+
 services:
+  # ── ECU Engine (Python FastAPI) ─────────────────────────────────────────────
+  # Always started. Available at http://localhost:8000 on the host.
+  # Inside the Docker network: http://ecu-engine:8000
   ecu-engine:
     build:
       context: ./services/ecu-engine
@@ -6,7 +16,48 @@ services:
       - "8000:8000"
     environment:
       ENV: development
-      ECU_PARSER_SECRET: dev-secret
+      ECU_PARSER_SECRET: ${ECU_PARSER_SECRET:-dev-secret}
     volumes:
       - ./services/ecu-engine:/app
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - maplab
+    restart: unless-stopped
+
+  # ── Next.js Web App ─────────────────────────────────────────────────────────
+  # Only started with: docker compose --profile full up
+  # For day-to-day development, run the web app natively via ./dev.sh instead
+  # (faster hot-reload without Docker overhead).
+  web:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    env_file:
+      - path: apps/web/.env.local
+        required: false
+    environment:
+      # Override so the web container talks to the ecu-engine container, not localhost
+      ECU_PARSER_URL: http://ecu-engine:8000
+      # Enable polling-based file watcher as fallback for macOS bind mounts
+      # (not needed with Docker Desktop ≥4.17 + VirtioFS, but harmless)
+      WATCHPACK_POLLING: "false"
+    volumes:
+      - .:/app
+      - web_modules:/app/node_modules      # keep container's pnpm store
+      - web_next:/app/apps/web/.next       # keep .next build cache
+    command: pnpm --filter @maplab/web dev
+    depends_on:
+      ecu-engine:
+        condition: service_healthy
+    networks:
+      - maplab
+    restart: unless-stopped

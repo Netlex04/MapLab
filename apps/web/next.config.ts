@@ -1,6 +1,13 @@
+import path from 'path'
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  // Standalone output for minimal production Docker images.
+  // outputFileTracingRoot tells Next.js to trace deps from the monorepo root
+  // so workspace packages (packages/*) are included correctly.
+  output: 'standalone',
+  outputFileTracingRoot: path.join(__dirname, '../../'),
+
   transpilePackages: ['@maplab/ui', '@maplab/ecu-parser-wasm'],
   experimental: {},
   webpack: (config, { isServer }) => {

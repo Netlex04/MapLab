@@ -7,6 +7,7 @@ import { EditorToolbar } from './EditorToolbar'
 import { EditorSidebar } from './EditorSidebar'
 import { EditorCanvas } from './EditorCanvas'
 import { CommitDialog } from './CommitDialog'
+import { AICopilotPanel } from './sidebar/AICopilotPanel'
 
 // ─── Status Bar ───────────────────────────────────────────────────────────────
 
@@ -73,6 +74,7 @@ interface EditorShellProps {
 
 export function EditorShell({ projectId, projectName, branchId }: EditorShellProps) {
   const [commitDialogOpen, setCommitDialogOpen] = useState(false)
+  const [copilotOpen, setCopilotOpen] = useState(false)
 
   const handleCommit = useCallback(() => {
     setCommitDialogOpen(true)
@@ -80,13 +82,19 @@ export function EditorShell({ projectId, projectName, branchId }: EditorShellPro
 
   return (
     <div className="flex flex-col h-full bg-background">
-      <EditorToolbar projectName={projectName} onCommit={handleCommit} />
+      <EditorToolbar
+        projectName={projectName}
+        onCommit={handleCommit}
+        copilotOpen={copilotOpen}
+        onToggleCopilot={() => setCopilotOpen((o) => !o)}
+      />
 
       <div className="flex flex-1 overflow-hidden">
         <EditorSidebar />
         <main className="flex-1 overflow-hidden bg-background">
           <EditorCanvas />
         </main>
+        {copilotOpen && <AICopilotPanel onClose={() => setCopilotOpen(false)} />}
       </div>
 
       <EditorStatusBar />
