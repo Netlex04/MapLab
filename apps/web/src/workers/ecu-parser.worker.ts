@@ -8,14 +8,14 @@
  * Stub automatisch als Fallback ein.
  */
 
-import { parseECU, getHexSlice } from '@maplab/ecu-parser-wasm'
-import type { FileFormat, ParsedECU } from '@maplab/types'
+import { parseECU, getHexSlice, writeMapValues } from '@maplab/ecu-parser-wasm'
+import type { FileFormat, ParsedECU, ECUMap } from '@maplab/types'
 
 // ─── Message Protocol ─────────────────────────────────────────────────────────
 
 export type WorkerInbound =
   | { type: 'parse'; buffer: ArrayBuffer; format: FileFormat }
-  | { type: 'write'; buffer: ArrayBuffer; mapId: string; values: number[][] }
+  | { type: 'write'; buffer: ArrayBuffer; maps: ECUMap[]; changes: Record<string, number[][]> }
   | { type: 'hex-slice'; buffer: ArrayBuffer; offset: number; length: number }
 
 export type WorkerOutbound =
@@ -50,11 +50,11 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
 
     case 'write': {
       try {
-        // Wird in Schritt 7 (Commit-Flow) mit echtem WASM verdrahtet.
-        // Bis dahin: Stub gibt den unveränderten Buffer zurück.
-        const response: WorkerOutbound = { type: 'write:success', buffer: msg.buffer }
-        // Transfer (zero-copy) wird in Step 7 mit echtem WASM ergänzt
-        self.postMessage(response)
+        const buffer = new Uint8Array(msg.buffer)
+        const result = await writeMapValues(buffer, msg.maps, msg.changes)
+        const ab = result.buffer.slice(result.byteOffset, result.byteOffset + result.byteLength) as ArrayBuffer
+        const response: WorkerOutbound = { type: 'write:success', buffer: ab }
+        self.postMessage(response, { transfer: [ab] })
       } catch (err) {
         const response: WorkerOutbound = {
           type: 'write:error',

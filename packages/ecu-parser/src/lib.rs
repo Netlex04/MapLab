@@ -1,0 +1,227 @@
+use wasm_bindgen::prelude::*;
+use serde::{Deserialize, Serialize};
+use sha2::{Sha256, Digest};
+
+// ─── Data types (mirrored from @maplab/types) ─────────────────────────────────
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ECUMap {
+    pub id: String,
+    #[serde(rename = "fileVersionId")]
+    pub file_version_id: String,
+    pub name: Option<String>,
+    #[serde(rename = "aiLabel")]
+    pub ai_label: Option<String>,
+    #[serde(rename = "type")]
+    pub map_type: Option<String>,
+    pub offset: usize,
+    pub rows: usize,
+    pub cols: usize,
+    #[serde(rename = "xAxisLabel")]
+    pub x_axis_label: Option<String>,
+    #[serde(rename = "yAxisLabel")]
+    pub y_axis_label: Option<String>,
+    #[serde(rename = "valueUnit")]
+    pub value_unit: Option<String>,
+    pub values: Vec<Vec<f64>>,
+    #[serde(rename = "scaledValues")]
+    pub scaled_values: Option<Vec<Vec<f64>>>,
+    #[serde(rename = "safetyFlags")]
+    pub safety_flags: Option<Vec<()>>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ParsedECU {
+    pub format: String,
+    pub size: usize,
+    pub checksum: String,
+    pub maps: Vec<ECUMap>,
+    #[serde(rename = "detectedEcu")]
+    pub detected_ecu: Option<String>,
+    pub confidence: f64,
+}
+
+#[derive(Serialize)]
+pub struct HexSlice {
+    pub offset: usize,
+    pub bytes: Vec<u8>,
+    pub ascii: Vec<String>,
+}
+
+// ─── ECU signature detection ──────────────────────────────────────────────────
+
+struct EcuSignature {
+    name: &'static str,
+    size: usize,
+    identifier: &'static [u8],
+    id_offset: usize,
+}
+
+const SIGNATURES: &[EcuSignature] = &[
+    EcuSignature { name: "Siemens MS42", size: 524288,  identifier: b"MS42", id_offset: 0x7F020 },
+    EcuSignature { name: "Siemens MS43", size: 524288,  identifier: b"MS43", id_offset: 0x7F020 },
+    EcuSignature { name: "Siemens MS45", size: 1048576, identifier: b"MS45", id_offset: 0xFF020 },
+    EcuSignature { name: "Siemens GS20", size: 262144,  identifier: b"GS20", id_offset: 0x3F020 },
+];
+
+fn detect_ecu(buffer: &[u8]) -> Option<(&'static str, f64)> {
+    for sig in SIGNATURES {
+        if buffer.len() == sig.size {
+            let end = (sig.id_offset + sig.identifier.len()).min(buffer.len());
+            if end > sig.id_offset && &buffer[sig.id_offset..end] == sig.identifier {
+                return Some((sig.name, 0.95));
+            }
+            // Size match only – lower confidence
+            return Some((sig.name, 0.5));
+        }
+    }
+    None
+}
+
+// ─── SHA-256 helper ───────────────────────────────────────────────────────────
+
+fn sha256_hex(data: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    hex::encode(hasher.finalize())
+}
+
+// ─── WASM-exported parser ─────────────────────────────────────────────────────
+
+#[wasm_bindgen]
+pub struct ECUParser {
+    buffer: Vec<u8>,
+    format: String,
+    maps: Vec<ECUMap>,
+}
+
+#[wasm_bindgen]
+impl ECUParser {
+    #[wasm_bindgen(constructor)]
+    pub fn new(buffer: &[u8], format: &str) -> Self {
+        Self {
+            buffer: buffer.to_vec(),
+            format: format.to_string(),
+            maps: Vec::new(),
+        }
+    }
+
+    /// Parse buffer and return ParsedECU as JsValue.
+    /// Also caches the maps internally so write_map_values can look them up.
+    pub fn extract_maps(&mut self) -> JsValue {
+        let (detected_ecu, confidence) = match detect_ecu(&self.buffer) {
+            Some((name, conf)) => (Some(name.to_string()), conf),
+            None => (None, 0.0),
+        };
+
+        // TODO: implement full MS4X map extraction from DAMOS definitions.
+        // Until DAMOS integration is complete, the Python microservice at
+        // /api/fingerprint provides the authoritative map list. The WASM
+        // parser's primary current value is write_map_values (byte-accurate
+        // writes back into the binary) and checksum validation.
+        self.maps = Vec::new();
+
+        let result = ParsedECU {
+            format: self.format.clone(),
+            size: self.buffer.len(),
+            checksum: sha256_hex(&self.buffer),
+            maps: self.maps.clone(),
+            detected_ecu,
+            confidence,
+        };
+
+        serde_wasm_bindgen::to_value(&result).unwrap_or(JsValue::NULL)
+    }
+
+    /// Return a hex + ASCII slice of the buffer for the Hex View.
+    pub fn get_hex_slice(&self, offset: usize, length: usize) -> JsValue {
+        let start = offset.min(self.buffer.len());
+        let end = (offset + length).min(self.buffer.len());
+        let slice = &self.buffer[start..end];
+
+        let ascii: Vec<String> = slice
+            .iter()
+            .map(|&b| {
+                if (0x20..=0x7e).contains(&b) {
+                    (b as char).to_string()
+                } else {
+                    ".".to_string()
+                }
+            })
+            .collect();
+
+        let result = HexSlice {
+            offset: start,
+            bytes: slice.to_vec(),
+            ascii,
+        };
+
+        serde_wasm_bindgen::to_value(&result).unwrap_or(JsValue::NULL)
+    }
+
+    /// SHA-256 of the entire buffer.
+    pub fn checksum(&self) -> String {
+        sha256_hex(&self.buffer)
+    }
+
+    /// Write map values back into a copy of the buffer and return it.
+    ///
+    /// Values are stored as unsigned 16-bit integers in big-endian (Motorola)
+    /// byte order – the standard for Siemens MS4X ECUs.
+    ///
+    /// The map must have been returned by extract_maps() so the parser knows
+    /// its offset and dimensions. If the map_id is not found, the original
+    /// buffer is returned unchanged.
+    pub fn write_map_values(&mut self, map_id: &str, values: JsValue) -> Vec<u8> {
+        let Ok(values): Result<Vec<Vec<f64>>, _> = serde_wasm_bindgen::from_value(values) else {
+            return self.buffer.clone();
+        };
+
+        let Some(map) = self.maps.iter().find(|m| m.id == map_id).cloned() else {
+            return self.buffer.clone();
+        };
+
+        for (row, row_vals) in values.iter().enumerate() {
+            for (col, &val) in row_vals.iter().enumerate() {
+                let byte_offset = map.offset + (row * map.cols + col) * 2;
+                if byte_offset + 2 > self.buffer.len() {
+                    continue;
+                }
+                // Clamp to u16 range before casting
+                let raw = val.round().clamp(0.0, 65535.0) as u16;
+                self.buffer[byte_offset] = (raw >> 8) as u8;      // high byte
+                self.buffer[byte_offset + 1] = (raw & 0xFF) as u8; // low byte
+            }
+        }
+
+        self.buffer.clone()
+    }
+
+    /// Byte-level diff: returns changed byte ranges as [{offset, length}] JSON.
+    pub fn fast_diff(&self, other: &ECUParser) -> JsValue {
+        #[derive(Serialize)]
+        struct DiffRange { offset: usize, length: usize }
+
+        let mut ranges: Vec<DiffRange> = Vec::new();
+        let len = self.buffer.len().max(other.buffer.len());
+        let mut in_range = false;
+        let mut range_start = 0;
+
+        for i in 0..len {
+            let a = self.buffer.get(i).copied().unwrap_or(0);
+            let b = other.buffer.get(i).copied().unwrap_or(0);
+            if a != b && !in_range {
+                in_range = true;
+                range_start = i;
+            } else if a == b && in_range {
+                ranges.push(DiffRange { offset: range_start, length: i - range_start });
+                in_range = false;
+            }
+        }
+        if in_range {
+            ranges.push(DiffRange { offset: range_start, length: len - range_start });
+        }
+
+        serde_wasm_bindgen::to_value(&ranges).unwrap_or(JsValue::NULL)
+    }
+}

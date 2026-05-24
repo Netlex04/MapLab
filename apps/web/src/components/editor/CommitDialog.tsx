@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { writeMapValues } from '@maplab/ecu-parser-wasm'
 import { useEditorStore } from '@/lib/editor/store'
 import { commitEditorChanges } from '@/app/actions/editor'
 
@@ -54,14 +55,13 @@ export function CommitDialog({ open, onClose, projectId, branchId }: CommitDialo
     setError(null)
 
     startTransition(async () => {
-      // Build the FormData payload.
-      // `rawBuffer` is the original ECU binary. In Step 8 (real WASM),
-      // this will be replaced by the write_map_values()-modified buffer.
-      //
-      // Copy into a plain ArrayBuffer to satisfy Blob's type constraints
-      // (rawBuffer has ArrayBufferLike backing which includes SharedArrayBuffer).
-      const ab = new ArrayBuffer(rawBuffer.byteLength)
-      new Uint8Array(ab).set(rawBuffer)
+      // Apply all pending map edits to a copy of the ECU binary.
+      // Falls back to uint16 big-endian JS writes when WASM isn't built yet.
+      const modified = await writeMapValues(rawBuffer, parsedECU.maps, pendingChanges)
+      const ab = modified.buffer.slice(
+        modified.byteOffset,
+        modified.byteOffset + modified.byteLength,
+      ) as ArrayBuffer
 
       const formData = new FormData()
       formData.append('message', message.trim())
