@@ -214,17 +214,25 @@ export function selectActiveMapValues(state: EditorState): number[][] | null {
   return state.pendingChanges[map.id] ?? map.values
 }
 
+const EMPTY_HIGHLIGHTS: SafetyHighlight[] = []
+let _lastSafetyFlagsRef: ECUMap['safetyFlags'] | undefined = undefined
+let _lastSafetyHighlights: SafetyHighlight[] = EMPTY_HIGHLIGHTS
+
 export function selectSafetyHighlights(state: EditorState): SafetyHighlight[] {
   const map = selectActiveMap(state)
-  if (!map?.safetyFlags) return []
+  const flags = map?.safetyFlags
+  if (!flags) return EMPTY_HIGHLIGHTS
+  if (flags === _lastSafetyFlagsRef) return _lastSafetyHighlights
 
-  return map.safetyFlags.flatMap((flag) =>
+  _lastSafetyFlagsRef = flags
+  _lastSafetyHighlights = flags.flatMap((flag) =>
     (flag.affectedCells ?? []).map(([row, col]) => ({
       row,
       col,
       severity: flag.severity,
     })),
   )
+  return _lastSafetyHighlights
 }
 
 export function selectCanUndo(state: EditorState): boolean {

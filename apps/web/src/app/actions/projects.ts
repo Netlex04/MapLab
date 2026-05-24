@@ -370,3 +370,49 @@ export async function uploadCommit(
   revalidatePath(`/projects/${projectId}`)
   return null
 }
+
+// ─── Editor File Loading ───────────────────────────────────────────────────────
+
+export interface LatestFileInfo {
+  signedUrl: string
+  format: FileFormat
+  size: number
+}
+
+/**
+ * Returns a short-lived signed URL for the head commit's ECU file.
+ * Returns null if the branch has no commits yet (new project).
+ */
+export async function getLatestFileInfo(branchId: string): Promise<LatestFileInfo | null> {
+  const user = await getAuthUser()
+  if (!user) return null
+
+  const branch = await prisma.branch.findUnique({
+    where: { id: branchId },
+    select: { headId: true },
+  })
+
+  if (!branch?.headId) return null
+
+  const commit = await prisma.commit.findUnique({
+    where: { id: branch.headId },
+    select: {
+      fileVersion: { select: { storageKey: true, format: true, size: true } },
+    },
+  })
+
+  if (!commit?.fileVersion) return null
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.storage
+    .from('ecu-files')
+    .createSignedUrl(commit.fileVersion.storageKey, 120)
+
+  if (error || !data) return null
+
+  return {
+    signedUrl: data.signedUrl,
+    format: commit.fileVersion.format as FileFormat,
+    size: commit.fileVersion.size,
+  }
+}

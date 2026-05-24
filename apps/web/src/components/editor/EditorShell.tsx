@@ -1,8 +1,10 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Cpu, AlertTriangle } from 'lucide-react'
 import { useEditorStore } from '@/lib/editor/store'
+import { useECUParser } from '@/lib/editor/use-ecu-parser'
+import { getLatestFileInfo } from '@/app/actions/projects'
 import { EditorToolbar } from './EditorToolbar'
 import { EditorSidebar } from './EditorSidebar'
 import { EditorCanvas } from './EditorCanvas'
@@ -75,6 +77,32 @@ interface EditorShellProps {
 export function EditorShell({ projectId, projectName, branchId }: EditorShellProps) {
   const [commitDialogOpen, setCommitDialogOpen] = useState(false)
   const [copilotOpen, setCopilotOpen] = useState(false)
+  const { parseFile } = useECUParser()
+
+  // Load the head commit's ECU file once on mount (or when branch changes).
+  // If the branch has no commits yet the action returns null and we stay idle.
+  useEffect(() => {
+    let cancelled = false
+
+    async function load() {
+      const info = await getLatestFileInfo(branchId)
+      if (cancelled || !info) return
+
+      const res = await fetch(info.signedUrl)
+      if (!res.ok || cancelled) return
+
+      const blob = await res.blob()
+      const ext = info.format.toLowerCase()
+      const file = new File([blob], `ecu.${ext}`, { type: 'application/octet-stream' })
+
+      if (!cancelled) await parseFile(file)
+    }
+
+    load()
+    return () => { cancelled = true }
+  // parseFile is stable (useCallback with stable Zustand deps)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchId])
 
   const handleCommit = useCallback(() => {
     setCommitDialogOpen(true)

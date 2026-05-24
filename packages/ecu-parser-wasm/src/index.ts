@@ -32,8 +32,11 @@ interface WasmECUParser {
 
 async function loadWasm(): Promise<WasmModule | null> {
   try {
-    // Dynamischer Import – erst verfügbar nachdem `wasm-pack build` gelaufen ist
-    const wasm = await import('../wasm/ecu_parser.js' as string)
+    // webpackIgnore / turbopackIgnore prevent the bundler from resolving this
+    // at build time. If the file is absent, the catch block activates the JS stub.
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    const wasm = await import(/* webpackIgnore: true *//* turbopackIgnore: true */ '../wasm/ecu_parser.js')
     await wasm.default()
     return wasm as WasmModule
   } catch {

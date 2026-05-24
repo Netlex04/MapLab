@@ -64,7 +64,7 @@ export function EditorToolbar({ projectName, onCommit, copilotOpen, onToggleCopi
       <nav className="flex items-center gap-0" aria-label="Editor-Ansicht">
         {VIEWS.map(({ id, label }) => {
           const isActive = activeView === id
-          const isDisabled = !isReady && id !== 'hex'
+          const isDisabled = !isReady
           return (
             <button
               key={id}
