@@ -7,7 +7,7 @@ import type {
   UndoEntry,
   SafetyHighlight,
 } from '@maplab/types'
-import type { MapDefinition } from '@maplab/definition-parser'
+import type { MapDefinition, DefinitionMatchResult } from '@maplab/definition-parser'
 
 // ─── State Shape ──────────────────────────────────────────────────────────────
 
@@ -16,6 +16,7 @@ export interface XdfState {
   fileName: string
   warnings: string[]
   stats: { tablesFound: number; constantsFound: number; definitionsCreated: number }
+  matchResult: DefinitionMatchResult | null
 }
 
 interface EditorState {

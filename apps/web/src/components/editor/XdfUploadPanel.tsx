@@ -2,8 +2,35 @@
 
 import { useRef, useState } from 'react'
 import { FileCode, X, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react'
-import { parseAndNormalizeXdf } from '@maplab/definition-parser'
+import { parseAndNormalizeXdf, matchDefinitions } from '@maplab/definition-parser'
+import type { DefinitionMatchStatus } from '@maplab/definition-parser'
 import { useEditorStore } from '@/lib/editor/store'
+
+// ─── Match status badge ───────────────────────────────────────────────────────
+
+const MATCH_LABEL: Record<DefinitionMatchStatus, string> = {
+  exact:    'exact match',
+  likely:   'likely match',
+  weak:     'weak match',
+  mismatch: 'mismatch',
+  unknown:  'unknown',
+}
+
+const MATCH_CLASS: Record<DefinitionMatchStatus, string> = {
+  exact:    'text-emerald-400',
+  likely:   'text-primary',
+  weak:     'text-amber-400',
+  mismatch: 'text-destructive',
+  unknown:  'text-muted-foreground',
+}
+
+function MatchBadge({ status }: { status: DefinitionMatchStatus }) {
+  return (
+    <span className={`font-mono text-[9px] ${MATCH_CLASS[status]}`}>
+      {MATCH_LABEL[status]}
+    </span>
+  )
+}
 
 // ─── Warning list ─────────────────────────────────────────────────────────────
 
@@ -40,6 +67,7 @@ function WarningList({ warnings }: { warnings: string[] }) {
 export function XdfUploadPanel() {
   const xdf = useEditorStore((s) => s.xdf)
   const setXdf = useEditorStore((s) => s.setXdf)
+  const rawBuffer = useEditorStore((s) => s.rawBuffer)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -56,11 +84,17 @@ export function XdfUploadPanel() {
     try {
       const text = await file.text()
       const result = parseAndNormalizeXdf(text, file.name)
+
+      const matchResult = rawBuffer
+        ? matchDefinitions(rawBuffer, result.definitions)
+        : null
+
       setXdf({
         definitions: result.definitions,
         fileName: file.name,
         warnings: result.warnings,
         stats: result.stats,
+        matchResult,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to parse XDF')
@@ -86,6 +120,14 @@ export function XdfUploadPanel() {
     setError(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
+
+  // Combine parse warnings + match warnings into one list
+  const allWarnings: string[] = xdf
+    ? [
+        ...xdf.warnings,
+        ...(xdf.matchResult?.warnings.map((w) => w.message) ?? []),
+      ]
+    : []
 
   return (
     <div className="border-t border-border">
@@ -118,9 +160,12 @@ export function XdfUploadPanel() {
                   {xdf.stats.tablesFound > 0 && ` · ${xdf.stats.tablesFound}T`}
                   {xdf.stats.constantsFound > 0 && ` · ${xdf.stats.constantsFound}C`}
                 </p>
+                {xdf.matchResult && (
+                  <MatchBadge status={xdf.matchResult.status} />
+                )}
               </div>
             </div>
-            <WarningList warnings={xdf.warnings} />
+            <WarningList warnings={allWarnings} />
           </div>
         ) : (
           // Upload area
