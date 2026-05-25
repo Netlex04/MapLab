@@ -77,7 +77,8 @@ interface EditorShellProps {
 export function EditorShell({ projectId, projectName, branchId }: EditorShellProps) {
   const [commitDialogOpen, setCommitDialogOpen] = useState(false)
   const [copilotOpen, setCopilotOpen] = useState(false)
-  const { parseFile } = useECUParser()
+  const { parseFile, reExtract } = useECUParser()
+  const xdf = useEditorStore((s) => s.xdf)
 
   // Load the head commit's ECU file once on mount (or when branch changes).
   // If the branch has no commits yet the action returns null and we stay idle.
@@ -103,6 +104,14 @@ export function EditorShell({ projectId, projectName, branchId }: EditorShellPro
   // parseFile is stable (useCallback with stable Zustand deps)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branchId])
+
+  // Re-extract maps whenever the XDF changes (user uploaded or cleared + re-uploaded).
+  // reExtract is a no-op when no ROM is loaded yet.
+  useEffect(() => {
+    if (!xdf) return
+    reExtract(xdf.definitions).catch(console.error)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [xdf])
 
   const handleCommit = useCallback(() => {
     setCommitDialogOpen(true)

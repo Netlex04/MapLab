@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { FileFormat } from '@maplab/types'
+import type { MapDefinition } from '@maplab/definition-parser'
 import type { WorkerInbound, WorkerOutbound } from '@/workers/ecu-parser.worker'
 import { useEditorStore } from './store'
 
@@ -54,6 +55,10 @@ export function useECUParser() {
       // Kopie des Buffers für den Store – der Worker bekommt das Original (Transferable)
       const bufferForStore = new Uint8Array(arrayBuffer.slice(0))
 
+      // Pass existing XDF definitions if the user uploaded one before loading the BIN
+      const xdf = useEditorStore.getState().xdf
+      const definitions: MapDefinition[] = xdf?.definitions ?? []
+
       const worker = getWorker()
 
       return new Promise<void>((resolve, reject) => {
@@ -84,9 +89,61 @@ export function useECUParser() {
         worker.addEventListener('message', onMessage)
         worker.addEventListener('error', onError)
 
-        const msg: WorkerInbound = { type: 'parse', buffer: arrayBuffer, format }
+        const outMsg: WorkerInbound = { type: 'parse', buffer: arrayBuffer, format, definitions }
         // ArrayBuffer als Transferable übergeben – zero-copy, kein Kopieren der 1MB+
-        worker.postMessage(msg, [arrayBuffer])
+        worker.postMessage(outMsg, [arrayBuffer])
+      })
+    },
+    [setStatus, setParsedECU],
+  )
+
+  // Re-extract maps from the stored buffer with new definitions (called after XDF upload).
+  const reExtract = useCallback(
+    async (definitions: MapDefinition[]): Promise<void> => {
+      const { rawBuffer, parsedECU } = useEditorStore.getState()
+      if (rawBuffer === null || parsedECU === null) return
+
+      setStatus('parsing')
+
+      // Slice creates an owned copy for the worker; rawBuffer in the store stays valid.
+      const workerBuffer = rawBuffer.slice()
+      const worker = getWorker()
+
+      return new Promise<void>((resolve, reject) => {
+        const onMessage = (event: MessageEvent<WorkerOutbound>) => {
+          const msg = event.data
+          if (msg.type !== 'parse:success' && msg.type !== 'parse:error') return
+
+          worker.removeEventListener('message', onMessage)
+          worker.removeEventListener('error', onError)
+
+          if (msg.type === 'parse:success') {
+            setParsedECU(msg.result, rawBuffer)
+            resolve()
+          } else {
+            setStatus('error', msg.message)
+            reject(new Error(msg.message))
+          }
+        }
+
+        const onError = (event: ErrorEvent) => {
+          worker.removeEventListener('message', onMessage)
+          worker.removeEventListener('error', onError)
+          const message = event.message ?? 'Worker-Fehler'
+          setStatus('error', message)
+          reject(new Error(message))
+        }
+
+        worker.addEventListener('message', onMessage)
+        worker.addEventListener('error', onError)
+
+        const outMsg: WorkerInbound = {
+          type: 'parse',
+          buffer: workerBuffer.buffer,
+          format: parsedECU.format,
+          definitions,
+        }
+        worker.postMessage(outMsg, [workerBuffer.buffer])
       })
     },
     [setStatus, setParsedECU],
@@ -120,5 +177,5 @@ export function useECUParser() {
     [],
   )
 
-  return { parseFile, requestHexSlice }
+  return { parseFile, reExtract, requestHexSlice }
 }
