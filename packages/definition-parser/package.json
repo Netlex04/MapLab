@@ -1,0 +1,14 @@
+{
+  "name": "@maplab/definition-parser",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "devDependencies": {
+    "@maplab/typescript-config": "workspace:*",
+    "typescript": "^5.8.3"
+  }
+}

@@ -2,6 +2,126 @@ use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 
+// ─── MapDefinition input types (mirrored from @maplab/definition-parser) ──────
+
+#[derive(Deserialize, Clone, Debug)]
+struct AxisScale {
+    factor: f64,
+    offset: f64,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+struct AxisDefinition {
+    label: Option<String>,
+    unit: Option<String>,
+    source: String,
+    values: Option<Vec<f64>>,
+    offset: Option<usize>,
+    length: Option<usize>,
+    data_type: Option<String>,
+    endianness: Option<String>,
+    scale: Option<AxisScale>,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+struct MapValueDef {
+    unit: Option<String>,
+    factor: f64,
+    offset: f64,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+struct MapDefinitionSource {
+    #[serde(rename = "type")]
+    source_type: String,
+    name: Option<String>,
+    version: Option<String>,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+struct MapCompatibility {
+    ecu: Option<String>,
+    expected_file_size: Option<usize>,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+struct MapDefinition {
+    id: String,
+    name: String,
+    category: String,
+    offset: usize,
+    rows: usize,
+    cols: usize,
+    data_type: String,
+    endianness: String,
+    value: MapValueDef,
+    x_axis: Option<AxisDefinition>,
+    y_axis: Option<AxisDefinition>,
+    source: MapDefinitionSource,
+    compatibility: Option<MapCompatibility>,
+    confidence: String,
+}
+
+// ─── Extraction output types ───────────────────────────────────────────────────
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+struct ExtractionAxis {
+    label: Option<String>,
+    unit: Option<String>,
+    values: Vec<f64>,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+struct ExtractionMapSource {
+    #[serde(rename = "type")]
+    source_type: String,
+    name: Option<String>,
+    version: Option<String>,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+struct MapWarning {
+    code: String,
+    severity: String,
+    message: String,
+    map_id: Option<String>,
+    offset: Option<usize>,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+struct ExtractedMap {
+    id: String,
+    definition_id: String,
+    name: String,
+    category: String,
+    offset: usize,
+    rows: usize,
+    cols: usize,
+    value_unit: Option<String>,
+    x_axis: ExtractionAxis,
+    y_axis: ExtractionAxis,
+    values: Vec<Vec<f64>>,
+    raw_values: Vec<Vec<f64>>,
+    source: ExtractionMapSource,
+    confidence: String,
+    warnings: Vec<MapWarning>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExtractionResult {
+    maps: Vec<ExtractedMap>,
+    warnings: Vec<MapWarning>,
+}
+
 // ─── Data types (mirrored from @maplab/types) ─────────────────────────────────
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -78,6 +198,17 @@ fn detect_ecu(buffer: &[u8]) -> Option<(&'static str, f64)> {
     None
 }
 
+// ─── Extraction helpers ───────────────────────────────────────────────────────
+
+fn byte_width(data_type: &str) -> usize {
+    match data_type {
+        "uint8" | "int8" => 1,
+        "uint16" | "int16" => 2,
+        "uint32" | "int32" | "float32" => 4,
+        _ => 2, // conservative default
+    }
+}
+
 // ─── SHA-256 helper ───────────────────────────────────────────────────────────
 
 fn sha256_hex(data: &[u8]) -> String {
@@ -130,6 +261,52 @@ impl ECUParser {
             confidence,
         };
 
+        serde_wasm_bindgen::to_value(&result).unwrap_or(JsValue::NULL)
+    }
+
+    /// Extract maps from a MapDefinition[] passed as JsValue (JSON array).
+    ///
+    /// Phase 1A: validates that definitions deserialize correctly and wires up
+    /// the stable ID + output types. Actual byte extraction is implemented in
+    /// Phase 1B (extraction/mod.rs).
+    pub fn extract_maps_from_definitions(&self, definitions_js: JsValue) -> JsValue {
+        let definitions: Vec<MapDefinition> = match serde_wasm_bindgen::from_value(definitions_js) {
+            Ok(d) => d,
+            Err(e) => {
+                let result = ExtractionResult {
+                    maps: vec![],
+                    warnings: vec![MapWarning {
+                        code: "DEFINITION_PARSE_ERROR".to_string(),
+                        severity: "critical".to_string(),
+                        message: format!("Failed to parse map definitions: {e}"),
+                        map_id: None,
+                        offset: None,
+                    }],
+                };
+                return serde_wasm_bindgen::to_value(&result).unwrap_or(JsValue::NULL);
+            }
+        };
+
+        // Phase 1B will replace this with the real extraction engine.
+        // For now: validate each definition fits within the buffer.
+        let mut warnings: Vec<MapWarning> = Vec::new();
+        for def in &definitions {
+            let required_bytes = def.offset + def.rows * def.cols * byte_width(&def.data_type);
+            if required_bytes > self.buffer.len() {
+                warnings.push(MapWarning {
+                    code: "OFFSET_OUT_OF_BOUNDS".to_string(),
+                    severity: "warning".to_string(),
+                    message: format!(
+                        "Map '{}' at 0x{:X} requires {} bytes but buffer is only {} bytes",
+                        def.name, def.offset, required_bytes, self.buffer.len()
+                    ),
+                    map_id: Some(def.id.clone()),
+                    offset: Some(def.offset),
+                });
+            }
+        }
+
+        let result = ExtractionResult { maps: vec![], warnings };
         serde_wasm_bindgen::to_value(&result).unwrap_or(JsValue::NULL)
     }
 

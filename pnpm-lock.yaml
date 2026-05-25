@@ -164,6 +164,15 @@ importers:
         specifier: ^5.8.3
         version: 5.9.3
 
+  packages/definition-parser:
+    devDependencies:
+      '@maplab/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+
   packages/ecu-parser-wasm:
     devDependencies:
       '@maplab/types':
