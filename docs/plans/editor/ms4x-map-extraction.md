@@ -4,312 +4,776 @@
 
 Zwei Phasen:
 
-**Phase 1 – WASM (offline, statisch):** Den WASM-Parser (`packages/ecu-parser/src/lib.rs`)
-so erweitern, dass er für bekannte Siemens-MS4X-ECUs reale Maps aus dem Binary liest –
-ohne Python-Microservice, offline, direkt im Browser-Worker-Thread. Basis: statische
-Map-Tabellen aus Community-Definitionen (ms4x.net XML).
+**Phase 1 – WASM / Browser Worker (offline, definition-based):**  
+Den WASM-Parser (`packages/ecu-parser/src/lib.rs`) so erweitern, dass er reale Maps aus dem Binary liest – ohne Python-Microservice, offline, direkt im Browser-Worker-Thread.
 
-**Phase 2 – Python-Service `/parse` (dynamisch, DAMOS-basiert):** Den Python-Microservice
-um einen `/parse`-Endpunkt erweitern, der die authoritative Map-Liste mit vollständigen
-Achswerten aus DAMOS-Definitionen liefert. Wird als Ergänzung zu Phase 1 eingebunden:
-Wenn der Service verfügbar ist, überschreibt sein Ergebnis die WASM-Tabelle.
+Basis sind nicht mehr ausschließlich statische Map-Tabellen im Rust-Code, sondern ein gemeinsames internes `MapDefinition`-Format.
+
+Definitionen können kommen aus:
+
+- internen MapForge-Definitionen für bekannte Siemens-MS4X-ROMs
+- vom Nutzer hochgeladenen XDF-Dateien
+- später aus ecuflash-/RomRaider-XMLs
+- später aus DAMOS/A2L über den Python-Service
+
+**Phase 2 – Python-Service `/parse` (dynamisch, DAMOS/A2L-basiert):**  
+Den Python-Microservice um einen `/parse`-Endpunkt erweitern, der eine hochwertigere Map-Liste mit vollständigen Achswerten aus DAMOS/A2L-Definitionen liefert. Wird als Ergänzung zu Phase 1 eingebunden: Wenn der Service verfügbar ist, kann sein Ergebnis die WASM/Definition-Daten verbessern.
 
 **Scope:** MS42 · MS43 · MS45  
 **Nicht im Scope:** GS20 (Getriebesteuergerät, niedrige Priorität)
 
 ---
 
+## Grundprinzip
+
+Die Map Extraction soll unabhängig davon funktionieren, woher eine Definition kommt.
+
+```txt
+Interne Definition
+User-XDF
+ecuflash XML
+RomRaider XML
+DAMOS / A2L
+        ↓
+Normalized MapDefinition[]
+        ↓
+Map Extraction Engine
+        ↓
+ECUMap[]
+        ↓
+Editor UI
+```
+
+Die eigentliche Extraction Engine darf nicht wissen müssen, ob eine Map aus einer internen Definition, einer User-XDF oder später aus DAMOS/A2L stammt.
+
+---
+
 ## Warum beides
 
-| Kriterium | WASM Phase 1 | Python-Service Phase 2 |
+| Kriterium | WASM / Browser Worker Phase 1 | Python-Service Phase 2 |
 |---|---|---|
 | Runtime-Dependency | keine | Service muss laufen |
-| Latenz | ~0 ms (Buffer schon im Worker) | Netzwerk-Round-Trip + 512 KB Upload |
+| Latenz | sehr niedrig | Netzwerk-Round-Trip + Upload |
 | Offline-Betrieb | ✓ | ✗ |
-| Achswerte (X/Y-Breakpoints) | ✗ hardcoded | ✓ aus DAMOS exakt |
-| Neue ECU-Typen ohne Deploy | ✗ | ✓ neue DAMOS-Datei reicht |
-| Qualität der Map-Metadaten | gut (Community-XML) | sehr gut (DAMOS authoritative) |
+| User-XDF-Support | ✓ | optional |
+| Interne Definitionen | ✓ | optional |
+| Achswerte X/Y | teilweise, abhängig von Definition | vollständig, wenn DAMOS/A2L vorhanden |
+| Neue ECU-Typen ohne Deploy | über User-XDF möglich | über neue DAMOS/A2L-Datei möglich |
+| Qualität der Map-Metadaten | gut, abhängig von Definition | sehr gut, wenn hochwertige DAMOS/A2L vorhanden |
 
-**Strategie**: Phase 1 macht den Editor sofort funktionsfähig und offline-tauglich.
-Phase 2 verbessert die Datenqualität inkrementell – der Worker versucht zuerst den
-Python-Service und fällt auf WASM zurück wenn er nicht erreichbar ist.
+**Strategie:**  
+Phase 1 macht den Editor sofort funktionsfähig und offline-tauglich. User können eigene XDFs hochladen, wenn keine interne Definition passt. Phase 2 verbessert die Datenqualität inkrementell.
 
 ---
 
 ## Was genau extrahiert wird
 
-Pro Map (aus DAMOS-Definitionen / Community-Quellen):
+Pro Map:
 
 | Feld | Typ | Beispiel |
 |---|---|---|
-| `offset` | `usize` | `0x18C40` |
-| `rows` | `usize` | `16` |
-| `cols` | `usize` | `16` |
-| `name` | `&str` | `"KFZW"` |
-| `type` | `MapType` | `IGNITION` |
-| `value_unit` | `&str` | `"°KW"` |
-| `x_axis_label` | `&str` | `"n [rpm]"` |
-| `y_axis_label` | `&str` | `"Load"` |
-| `scale_factor` | `f64` | `0.75` (raw × factor = °KW) |
-| `scale_offset` | `f64` | `-48.0` |
+| `offset` | `number` | `0x18C40` |
+| `rows` | `number` | `16` |
+| `cols` | `number` | `16` |
+| `name` | `string` | `"KFZW"` |
+| `category` | `MapCategory` | `"ignition"` |
+| `value_unit` | `string` | `"°KW"` |
+| `x_axis_label` | `string` | `"n [rpm]"` |
+| `y_axis_label` | `string` | `"Load"` |
+| `data_type` | `DataType` | `"uint16"` |
+| `endianness` | `Endianness` | `"big"` |
+| `scale_factor` | `number` | `0.75` |
+| `scale_offset` | `number` | `-48.0` |
+| `source` | `DefinitionSource` | `"internal"` / `"xdf"` |
+| `confidence` | `MapConfidence` | `"verified"` / `"user_uploaded"` |
 
-Raw-Werte im Binary sind `uint16 big-endian` (Motorola/Siemens-Standard).  
-Engineering-Wert = `raw * scale_factor + scale_offset`
+Engineering-Wert:
 
----
-
-## Datenquellen (Offset-Recherche)
-
-Die Map-Definitionen kommen aus öffentlich zugänglichen Community-Ressourcen:
-
-| Quelle | Enthält |
-|---|---|
-| **ecuflash XML** (`ms42.xml`, `ms43.xml`) | Offsets, Dims, Skalierung, Namen – maschinell lesbar |
-| **RomRaider-Definitions** (GitHub) | Ähnlich ecuflash, gut gepflegt für MS42/MS43 |
-| **MSS42 Tuner-Projekt** | MS42-spezifische Offsets mit DAMOS-Mapping |
-| **OpenECU / e46fanatics** | Validierungsdaten (community-verifizierte Werte) |
-
-> **Reihenfolge**: ecuflash/RomRaider-XML zuerst parsen (maschinell auswertbar),
-> Rest für Validierung und fehlende Maps.
-
----
-
-## Komplexitätseinschätzung
-
-| Teilaufgabe | Aufwand |
-|---|---|
-| Rust-Datenstruktur + Extraktions-Logik | **gering** – 1–2h Code |
-| MS42 Maps recherchieren + einpflegen | **mittel** – ~50–80 Maps, gut dokumentiert |
-| MS43 Maps recherchieren + einpflegen | **mittel** – sehr ähnlich zu MS42, viel Overlap |
-| MS45 Maps recherchieren + einpflegen | **mittel-hoch** – 1 MB Binary, mehr Maps |
-| Skalierungsfaktoren pro Map validieren | **hoch** – muss gegen bekannte Tune-Dateien geprüft werden |
-
-**Gesamt: 3–5 Tage**, davon >70% Datenbeschaffung/Validierung, <30% Code.
-
----
-
-## Implementierungsschritte
-
----
-
-### Schritt 1 – Rust-Datenmodell + Extraktor-Gerüst
-
-**Ziel**: Der Code-Rahmen steht. Maps können anhand einer statischen Tabelle
-aus dem Buffer extrahiert werden – noch ohne echte Offsets.
-
-**Was sich ändert**:
-
-`packages/ecu-parser/src/lib.rs`:
-
-```rust
-struct MapDef {
-    name: &'static str,
-    map_type: &'static str,
-    offset: usize,
-    rows: usize,
-    cols: usize,
-    value_unit: &'static str,
-    x_axis_label: &'static str,
-    y_axis_label: &'static str,
-    scale_factor: f64,
-    scale_offset: f64,
-}
-
-fn extract_from_def(buffer: &[u8], def: &MapDef, file_version_id: &str) -> Option<ECUMap> {
-    // bounds-check, liest rows×cols uint16 BE, wendet Skalierung an
-}
-
-fn ms42_maps() -> &'static [MapDef] { &[] }  // Platzhalter
-fn ms43_maps() -> &'static [MapDef] { &[] }
-fn ms45_maps() -> &'static [MapDef] { &[] }
+```txt
+engineeringValue = raw * scale_factor + scale_offset
 ```
 
-`extract_maps()` wählt anhand `detect_ecu()` die richtige Tabelle:
+Wichtig:  
+`uint16 big-endian` darf nicht global hardcoded werden. Es kann für viele MS4X-Maps stimmen, muss aber pro Map definiert werden.
 
-```rust
-let defs = match detected_ecu.as_deref() {
-    Some("Siemens MS42") => ms42_maps(),
-    Some("Siemens MS43") => ms43_maps(),
-    Some("Siemens MS45") => ms45_maps(),
-    _ => &[],
+---
+
+## Normalized MapDefinition Model
+
+Alle Definitionen werden in dieses interne Format überführt.
+
+```ts
+type MapCategory =
+  | "ignition"
+  | "fuel"
+  | "lambda"
+  | "torque"
+  | "driver_wish"
+  | "limit"
+  | "vanos"
+  | "idle"
+  | "maf"
+  | "boost"
+  | "diagnostic"
+  | "unknown";
+
+type DataType =
+  | "uint8"
+  | "int8"
+  | "uint16"
+  | "int16"
+  | "uint32"
+  | "int32"
+  | "float32";
+
+type Endianness = "big" | "little";
+
+type DefinitionSourceType =
+  | "internal"
+  | "xdf"
+  | "ecuflash_xml"
+  | "romraider_xml"
+  | "damos"
+  | "a2l"
+  | "manual";
+
+type MapConfidence =
+  | "verified"
+  | "definition"
+  | "user_uploaded"
+  | "inferred"
+  | "unknown";
+
+type AxisDefinition = {
+  label?: string;
+  unit?: string;
+
+  source:
+    | "inline"
+    | "address"
+    | "calculated"
+    | "index"
+    | "unknown";
+
+  values?: number[];
+
+  offset?: number;
+  length?: number;
+  dataType?: DataType;
+  endianness?: Endianness;
+
+  scale?: {
+    factor: number;
+    offset: number;
+  };
 };
-self.maps = defs.iter()
-    .filter_map(|d| extract_from_def(&self.buffer, d, &file_version_id))
-    .collect();
+
+type MapDefinition = {
+  id: string;
+
+  name: string;
+  description?: string;
+  category: MapCategory;
+
+  offset: number;
+  rows: number;
+  cols: number;
+
+  dataType: DataType;
+  endianness: Endianness;
+
+  value: {
+    unit?: string;
+    factor: number;
+    offset: number;
+    expression?: string;
+  };
+
+  xAxis?: AxisDefinition;
+  yAxis?: AxisDefinition;
+
+  source: {
+    type: DefinitionSourceType;
+    name?: string;
+    version?: string;
+    author?: string;
+    license?: string;
+  };
+
+  compatibility?: {
+    ecu?: "MS42" | "MS43" | "MS45";
+    softwareVersion?: string;
+    expectedFileSize?: number;
+    fingerprints?: string[];
+  };
+
+  confidence: MapConfidence;
+
+  safetyTags?: string[];
+
+  metadata?: Record<string, unknown>;
+};
 ```
 
-**Definition of Done**: WASM baut, gibt bei Unbekannter ECU `maps: []`,
-bei bekannter ECU leere Tabelle (Maps folgen in Schritt 3+).
+---
+
+## Parsed ECUMap
+
+Aus `MapDefinition + BIN` entsteht:
+
+```ts
+type ECUMap = {
+  id: string;
+  definitionId: string;
+
+  name: string;
+  category: MapCategory;
+
+  offset: number;
+  rows: number;
+  cols: number;
+
+  valueUnit?: string;
+
+  xAxis: {
+    label?: string;
+    unit?: string;
+    values: number[];
+  };
+
+  yAxis: {
+    label?: string;
+    unit?: string;
+    values: number[];
+  };
+
+  values: number[][];
+  rawValues: number[][];
+
+  source: {
+    type: DefinitionSourceType;
+    name?: string;
+    version?: string;
+  };
+
+  confidence: MapConfidence;
+
+  warnings: ValidationWarning[];
+};
+```
 
 ---
 
-### Schritt 2 – RomRaider/ecuflash XML auswerten
+## ValidationWarning
 
-**Ziel**: Rohdaten für alle drei ECU-Typen in einem gemeinsamen Format vorliegen,
-bevor sie in Rust-Konstanten überführt werden.
+```ts
+type ValidationSeverity = "info" | "warning" | "critical";
 
-**Vorgehen**:
-1. RomRaider-Definitions-Repository klonen / ZIP herunterladen
-2. `ms42.xml`, `ms43.xml`, `ms45.xml` parsen
-3. Pro Map extrahieren: `storageaddress`, `sizex`/`sizey`, `name`, `type`,
-   `units`, Skalierungs-`expression` (z.B. `x*0.75-48`)
-4. Ergebnis als kommentierte Zwischentabelle dokumentieren (CSV oder Markdown)
-
-**Ausgabe**: `docs/data/ms42-maps.csv`, `ms43-maps.csv`, `ms45-maps.csv`  
-(Nicht im Repo getracked wenn > 500 Zeilen, sonst als Referenz behalten)
-
-**Definition of Done**: Tabelle enthält für jede ECU mind. die 20 wichtigsten Maps
-(Injection, Ignition, Boost, Lambda) mit verifizierten Offsets.
+type ValidationWarning = {
+  code: string;
+  severity: ValidationSeverity;
+  message: string;
+  mapId?: string;
+  offset?: number;
+};
+```
 
 ---
 
-### Schritt 3 – MS42 Maps implementieren
+## Definition Matching
 
-**Ziel**: MS42-BIN (`Siemens_MS42_*`) zeigt echte Maps im Editor.
+### Ziel
 
-**Priorität der Maps** (Reihenfolge des Einpflegens):
+Vor dem Auslesen wird geprüft, ob eine interne Definition oder User-XDF zur geladenen BIN passt.
 
-| Priorität | Name | Typ | Beschreibung |
-|---|---|---|---|
-| 1 | `KFZW` | IGNITION | Zündkennfeld Hauptkennfeld |
-| 1 | `KFZW2` | IGNITION | Zündkennfeld Klopfregelung |
-| 1 | `KFKHFM` | INJECTION | Einspritzmenge Hauptkennfeld |
-| 1 | `KFPED` | DRIVER_WISH | Fahrerwunschkennfeld |
-| 2 | `LDRPID` | BOOST | Ladedruck-Regelung |
-| 2 | `KFLAM` | LAMBDA | Lambda-Sollwert-Kennfeld |
-| 2 | `KFMIRL` | TORQUE | Motormomentkennfeld |
-| 3 | alle weiteren Maps | – | nach Verfügbarkeit |
-
-**Definition of Done**: MS42-Testfile zeigt mind. Priorität-1-Maps korrekt,
-Werte stimmen mit WinOLS-Referenz überein (manuell spot-gecheckt).
+Eine XDF kann technisch gültig sein, aber trotzdem für eine andere Firmware-Version erstellt worden sein.
 
 ---
 
-### Schritt 4 – MS43 Maps implementieren
+### Match Status
 
-**Ziel**: MS43-BIN zeigt echte Maps.
+```ts
+type DefinitionMatchStatus =
+  | "exact"
+  | "likely"
+  | "weak"
+  | "mismatch"
+  | "unknown";
 
-**Hinweis**: MS43 teilt ~60% der Map-Offsets mit MS42 nicht (anderes ROM-Layout),
-hat aber identische Map-Namen und Skalierungen. Trotzdem eigenständige Tabelle.
-
-**Definition of Done**: Wie Schritt 3, mit MS43-Testfile.
-
----
-
-### Schritt 5 – MS45 Maps implementieren
-
-**Ziel**: MS45-BIN (1 MB) zeigt echte Maps.
-
-**Besonderheiten MS45**:
-- Doppelte Dateigröße → Offsets grundsätzlich anders
-- Einige Maps haben andere Dimensionen (z.B. 16×16 statt 8×8)
-- Weniger community-dokumentiert als MS42/43 → mehr manuelle Recherche
-
-**Definition of Done**: Wie Schritt 3, mit MS45-Testfile.
+type DefinitionMatchResult = {
+  status: DefinitionMatchStatus;
+  score: number;
+  warnings: ValidationWarning[];
+};
+```
 
 ---
 
-### Schritt 6 – WASM neu bauen + integrieren
+### Matching-Kriterien
 
-**Ziel**: Neues WASM-Binary landet im Browser-Worker.
+| Check | Bedeutung |
+|---|---|
+| Dateigröße | passt die BIN-Größe zur erwarteten ECU? |
+| ECU-Typ | MS42/MS43/MS45 erkannt? |
+| Softwareversion | passt Firmware-ID oder Fingerprint? |
+| Offsets | liegen Map-Offsets innerhalb der Datei? |
+| Wertebereiche | ergeben gelesene Werte plausible Engineering-Werte? |
+| Achsen | sind Achsen monoton/plausibel? |
+| Checksums | ist der Checksum-Status bekannt/gültig/ungültig? |
+| Magic/Fingerprint | bekannte Identifier im ROM vorhanden? |
 
-**Befehle**:
+---
+
+## Definition Source Priorität
+
+Wenn mehrere Definitionen vorhanden sind:
+
+```txt
+1. Exakt passende interne verified Definition
+2. Vom Nutzer explizit hochgeladene XDF
+3. Wahrscheinlich passende interne Definition
+4. Python-Service DAMOS/A2L Enhancement
+5. Index-only Fallback ohne Maps
+```
+
+Wichtig:
+
+- Nutzer-XDF darf interne Definition überschreiben, wenn Nutzer das aktiv auswählt.
+- Interne verified Definitionen sollten als sicherste Quelle markiert werden.
+- Python-Service-Ergebnisse dürfen nicht stillschweigend inkompatible Maps überschreiben.
+
+---
+
+## Datenquellen
+
+Die Map-Definitionen können kommen aus:
+
+| Quelle | Enthält | Nutzung |
+|---|---|---|
+| User-XDF | Offsets, Dims, Skalierung, Namen, Achsen | Phase 1 |
+| Interne MapForge Definitionen | geprüfte bekannte ROMs | Phase 1 |
+| ecuflash XML | Offsets, Dims, Skalierung, Namen | später/importierbar |
+| RomRaider Definitions | ähnliche Struktur, community-gepflegt | später/importierbar |
+| DAMOS/A2L | vollständige Definitionen inkl. Achsen | Phase 2 |
+| Manuelle Definition | selbst gepflegte Definitionen | optional |
+
+---
+
+## Repo-Regeln
+
+Keine fremden ROMs, XDFs, XMLs, DAMOS- oder A2L-Dateien ungeprüft ins öffentliche Repo committen.
+
+```gitignore
+local-fixtures/
+packages/ecu-parser/tests/fixtures/*.bin
+docs/data/definitions/*.xdf
+docs/data/definitions/*.xml
+docs/data/definitions/*.a2l
+docs/data/definitions/*.damos
+```
+
+Lokale Test-Fixtures:
+
+```txt
+local-fixtures/
+  roms/
+    ms43_ms430069_stock.bin
+    ms42_0110c6_stock.bin
+    your_ms42_read.bin
+
+  definitions/
+    ms43_ms430069.xdf
+    ms42_0110c6.xdf
+    ms42_v041.xml
+
+  expected/
+    ms43_ms430069_expected_maps.json
+    ms42_0110c6_expected_maps.json
+```
+
+---
+
+## Empfohlene Projektstruktur
+
+```txt
+packages/
+  ecu-parser/
+    src/
+      lib.rs
+      extraction/
+        mod.rs
+      validation/
+        mod.rs
+    tests/
+      fixtures/
+        .gitkeep
+      README.md
+
+  definition-parser/
+    src/
+      xdf/
+        parse-xdf.ts
+        normalize-xdf.ts
+      ecuflash/
+        parse-ecuflash.ts
+        normalize-ecuflash.ts
+      romraider/
+        parse-romraider.ts
+        normalize-romraider.ts
+      common/
+        map-definition.ts
+        validation.ts
+
+apps/
+  web/
+    src/
+      workers/
+        ecu-parser.worker.ts
+      features/
+        editor/
+        definitions/
+        upload/
+        safety/
+
+docs/
+  architecture/
+    map-extraction.md
+    definition-model.md
+```
+
+---
+
+# Implementierungsphasen
+
+---
+
+## Phase 1A – Gemeinsames MapDefinition Model
+
+### Ziel
+
+Ein gemeinsames internes Format für interne Definitionen, User-XDFs und spätere DAMOS/A2L-Daten schaffen.
+
+### Aufgaben
+
+- TypeScript-Typen für `MapDefinition`, `AxisDefinition`, `ECUMap`, `ValidationWarning`
+- Rust-äquivalente Structs oder JSON-Input für WASM
+- Serialisierung zwischen Worker und UI
+- stabile Map-IDs generieren
+- Source-Metadaten erfassen
+- Confidence-Level einführen
+
+### Definition of Done
+
+- Interne Definitionen und User-XDFs können in dasselbe Format gebracht werden.
+- Extraction Engine arbeitet nur mit `MapDefinition[]`.
+- Keine Sonderlogik für XDF vs. interne Definition in der Extraction Engine.
+
+---
+
+## Phase 1B – Generic Map Extraction Engine
+
+### Ziel
+
+Eine generische Extraction Engine bauen, die unabhängig von MS42/MS43/MS45 und unabhängig von der Definitionsquelle funktioniert.
+
+### Input
+
+```txt
+Binary Buffer
+MapDefinition[]
+```
+
+### Output
+
+```txt
+ECUMap[]
+ValidationWarning[]
+```
+
+### Aufgaben
+
+- Bounds Checking
+- Lesen von `uint8`, `int8`, `uint16`, `int16`, `uint32`, `int32`, `float32`
+- Big Endian und Little Endian unterstützen
+- Skalierung anwenden
+- 1D-, 2D- und 3D-Maps unterstützen
+- Achsen auslesen, falls vorhanden
+- auf Index-Achsen zurückfallen, falls keine Achsen vorhanden
+- ungültige Maps überspringen statt crashen
+- Warnungen sammeln
+
+### Definition of Done
+
+- Engine kann mit künstlichen Testdaten Maps korrekt extrahieren.
+- Engine funktioniert ohne echte MS4X-Files.
+- Ungültige Offsets führen zu Warnungen, nicht zu Panics.
+- Tests decken Datentypen, Endianness und Scaling ab.
+
+---
+
+## Phase 1C – User-XDF Upload & Parser
+
+### Ziel
+
+Der Nutzer kann zusätzlich zur BIN-Datei eine eigene TunerPro-XDF hochladen.
+
+### Ablauf
+
+```txt
+1. Nutzer lädt BIN hoch
+2. Editor erkennt ECU/Firmware soweit möglich
+3. Editor sucht passende interne Definition
+4. Falls keine passende interne Definition vorhanden ist:
+   Nutzer kann XDF hochladen
+5. XDF wird geparst
+6. XDF wird in MapDefinition[] normalisiert
+7. Dieselbe Extraction Engine liest Maps aus der BIN
+```
+
+### Aufgaben
+
+- `.xdf` Upload im UI ermöglichen
+- XDF als XML einlesen
+- Tables extrahieren
+- Scalars extrahieren
+- Map-Namen übernehmen
+- Offsets/Addresses lesen
+- Dimensionen erkennen
+- Datentyp erkennen
+- Endianness erkennen
+- Units übernehmen
+- Skalierungsformeln auslesen
+- einfache Formeln in `factor + offset` normalisieren
+- komplexe Formeln als `expression` speichern
+- X-/Y-Achsen extrahieren, falls vorhanden
+- Kategorien aus Namen/Ordnern ableiten
+- nicht unterstützte XDF-Elemente sauber ignorieren oder warnen
+
+### Definition of Done
+
+- Nutzer kann eine `.xdf` hochladen.
+- XDF wird clientseitig oder im Worker geparst.
+- Mindestens Tables/Scalars werden erkannt.
+- Offsets, Dimensionen, Datentypen, Skalierung und Units werden extrahiert.
+- Nicht unterstützte XDF-Elemente erzeugen Warnungen statt Fehler.
+- Die erzeugten `MapDefinition[]` können von derselben Extraction Engine genutzt werden wie interne Definitionen.
+
+---
+
+## Phase 1D – Definition Validation & Matching
+
+### Ziel
+
+Prüfen, ob eine interne Definition oder User-XDF zur geladenen BIN passt.
+
+### Aufgaben
+
+- Dateigröße gegen erwartete Größe prüfen
+- ECU-Typ/Firmware-Fingerprint prüfen, falls vorhanden
+- Offsets gegen Buffer-Grenzen prüfen
+- Probeweise ausgewählte Maps lesen
+- Wertebereiche grob prüfen
+- Achsen auf Plausibilität prüfen
+- Maps mit nur `0x00` oder `0xFF` erkennen
+- Checksum-Status integrieren
+- `DefinitionMatchResult` erzeugen
+
+### Ergebnis
+
+Der Nutzer sieht klar:
+
+```txt
+Diese Definition passt exakt.
+Diese Definition passt wahrscheinlich.
+Diese Definition passt nur schwach.
+Diese Definition passt wahrscheinlich nicht.
+```
+
+### Definition of Done
+
+- Falsche XDF führt nicht still zu falschen Maps.
+- Der Editor zeigt einen Match-Status mit Warnungen.
+- Bei `mismatch` muss der Nutzer bewusst bestätigen oder eine andere Definition wählen.
+- Bei `exact` oder `likely` kann der Editor Maps automatisch anzeigen.
+
+---
+
+## Phase 1E – Interne MS4X-Definitionen
+
+### Ziel
+
+Für bekannte MS4X-ROMs können interne MapForge-Definitionen bereitgestellt werden.
+
+### Wichtig
+
+Interne Definitionen dürfen keine Sonderlogik verwenden. Sie müssen ebenfalls in `MapDefinition[]` vorliegen.
+
+Nicht dauerhaft so:
+
+```rust
+fn ms42_maps() -> &'static [MapDef]
+```
+
+Sondern besser so:
+
+```txt
+loadInternalDefinition("MS43", "MS430069")
+→ MapDefinition[]
+```
+
+### Priorität
+
+Empfohlene Reihenfolge:
+
+```txt
+1. MS43 MS430069
+2. MS42 0110C6
+3. MS45 später
+```
+
+### Definition of Done
+
+- Mindestens eine bekannte MS43-Definition kann geladen werden.
+- Mindestens 10–20 wichtige Maps werden korrekt angezeigt.
+- Interne Definitionen nutzen dieselbe Extraction Engine wie User-XDFs.
+- Werte sind gegen lokale Stock-ROMs spot-gecheckt.
+
+---
+
+## Phase 1F – Editor Integration
+
+### Ziel
+
+Maps im Editor anzeigen und auswählbar machen.
+
+### Aufgaben
+
+- BIN Upload
+- optionale XDF Upload UI
+- automatische interne Definition suchen
+- Definition Match Status anzeigen
+- Map-Liste anzeigen
+- Map Details anzeigen
+- 2D Table View
+- 3D View, falls vorhanden
+- Hex Offset Sync
+- Warnings pro Map anzeigen
+- Source anzeigen: `internal`, `xdf`, `damos`, etc.
+- Confidence anzeigen
+
+### Definition of Done
+
+- Nutzer kann eine BIN laden.
+- Nutzer kann optional eine XDF hochladen.
+- Der Editor zeigt Maps, wenn eine passende Definition vorhanden ist.
+- Nutzer sieht, aus welcher Quelle die Definition stammt.
+- Nutzer sieht Warnungen, wenn Definition oder Werte auffällig sind.
+
+---
+
+## Phase 1G – Basic Safety Checks
+
+### Ziel
+
+Noch keine vollständige Motor-Safety-Bewertung, sondern grundlegende Editor-Safety.
+
+### Checks
+
+- Definition passt nicht zur BIN
+- Checksum ungültig oder unbekannt
+- Map-Offset außerhalb Datei
+- Map-Werte außerhalb grober Grenzwerte
+- Achsen nicht plausibel
+- Änderung größer als definierter Prozentwert
+- wichtige Map geändert, aber verwandte Map nicht
+- Datei wirkt truncated oder falsche Größe
+- XDF wirkt inkompatibel
+
+### Definition of Done
+
+- Safety Checks laufen nach erfolgreicher Map Extraction.
+- Warnungen werden im UI sichtbar.
+- Der Editor behauptet nicht, ein File sei sicher flashbar.
+- Safety Checks sind als Hinweise formuliert, nicht als endgültige Freigabe.
+
+---
+
+## Phase 1H – WASM neu bauen + integrieren
+
+### Ziel
+
+Neues WASM-Binary landet im Browser-Worker.
+
+### Befehl
+
 ```bash
 wasm-pack build packages/ecu-parser --target web \
   --out-dir packages/ecu-parser-wasm/wasm
 ```
 
-**Änderungen in `packages/ecu-parser-wasm/src/index.ts`**:  
-Keine – das WASM-Interface bleibt identisch. `extract_maps()` gibt nun
-echte Maps zurück statt `[]`.
+### Definition of Done
 
-**Definition of Done**: `pnpm dev` läuft, echte BIN laden zeigt Maps im Editor.
+- `pnpm dev` läuft.
+- Echte BIN + interne Definition zeigt Maps.
+- Echte BIN + User-XDF zeigt Maps.
+- Unbekannte ECU öffnet weiterhin Hex View.
+- Keine Panics bei falscher oder unvollständiger Definition.
 
 ---
 
-### Schritt 7 – Validierung & Edge Cases
+## Phase 1I – Validierung & Edge Cases
 
-**Ziel**: Keine Abstürze bei Randtypen, saubere Degradation bei unbekannter ECU.
+### Ziel
 
-**Testfälle**:
-- [ ] Truncated Binary (<512KB) → keine Maps, kein Panic
-- [ ] Unbekannte ECU → `maps: []`, Hex-View trotzdem öffnen
-- [ ] Map-Offset außerhalb Buffer-Grenzen → Map überspringen, Rest anzeigen
-- [ ] Alle MS42-Priorität-1-Maps Spot-Check gegen Referenzwerte
+Keine Abstürze bei Randfällen, saubere Degradation bei unbekannter ECU oder falscher Definition.
+
+### Testfälle
+
+- [ ] Truncated Binary → keine Maps, kein Panic
+- [ ] Unbekannte ECU → Hex View öffnet trotzdem
+- [ ] XDF passt exakt → Maps anzeigen
+- [ ] XDF passt wahrscheinlich → Maps anzeigen mit Hinweis
+- [ ] XDF passt schwach → Warnung anzeigen
+- [ ] XDF mismatch → nicht automatisch Maps anzeigen
+- [ ] Map-Offset außerhalb Buffer → Map überspringen, Rest anzeigen
+- [ ] Nicht unterstützte XDF-Formel → Warnung, nicht crashen
+- [ ] Achsen fehlen → Index-Achsen anzeigen
+- [ ] Achsen unplausibel → Warnung anzeigen
 - [ ] MS43 Spot-Check
-- [ ] MS45 Spot-Check
+- [ ] MS42 Spot-Check
+- [ ] MS45 später Spot-Check
 
 ---
 
-## Nicht im Scope dieses Plans
+# Phase 2 – Python-Service `/parse`
 
-- **Achswerte** (X/Y-Breakpoints) in Phase 1: kommen mit Phase 2 (DAMOS hat sie)
-- **Safety-Flags** aus Map-Grenzwerten: Folgt in separatem Plan
-- **GS20** (Getriebesteuergerät): Niedrige Priorität, eigener Plan wenn nötig
+## Überblick
+
+Der Python-Microservice kennt den ECU-Typ aus `/fingerprint` oder erkennt ihn selbst. Phase 2 fügt einen `/parse`-Endpunkt hinzu, der eine vollständige Map-Liste mit DAMOS-/A2L-basierten Achswerten zurückgibt.
+
+Der Worker kann diesen Endpunkt nach dem lokalen WASM/Definition-Parse aufrufen. Wenn der Service antwortet und kompatible Daten liefert, können Maps und Achswerte verbessert werden.
 
 ---
 
-## Abhängigkeiten
+## Schritt 2A – Python `/parse` Endpoint
 
-```
-Phase 1 – WASM
+### Ziel
 
-[Schritt 1 – Rust-Gerüst]
-        │
-        ├──► [Schritt 2 – XML-Auswertung]
-        │           │
-        │    ┌──────┼───────┐
-        │    ▼      ▼       ▼
-        │  [3 MS42] [4 MS43] [5 MS45]   ← parallel möglich
-        │    └──────┴───────┘
-        │           │
-        └──────────►[Schritt 6 – WASM Build]
-                           │
-                           ▼
-                    [Schritt 7 – Validierung]
-                           │
-                           ▼
-Phase 2 – Python-Service
+Der Python-Microservice kann eine ECU-Binary vollständig parsen und eine strukturierte Map-Liste zurückgeben.
 
-              [Schritt 8 – /parse Endpoint]
-                           │
-                    ┌──────┴──────┐
-                    ▼             ▼
-          [Schritt 9 – API Route] [Schritt 10 – Worker Fallback]
-                    └──────┬──────┘
-                           ▼
-                  [Schritt 11 – Validierung Phase 2]
+### Eingabe
+
+```txt
+multipart/form-data mit file
 ```
 
----
+### Ausgabe
 
-## Phase 2 – Python-Service `/parse`
-
-### Überblick
-
-Der Python-Microservice kennt bereits den ECU-Typ (aus `/fingerprint`). Phase 2
-fügt einen `/parse`-Endpunkt hinzu der die vollständige Map-Liste mit DAMOS-basierten
-Achswerten zurückgibt. Der Worker ruft diesen Endpunkt nach dem WASM-Parse auf;
-wenn er antwortet, ersetzt sein Ergebnis die statische WASM-Tabelle.
-
-**Vorteil gegenüber Phase 1**: DAMOS-Dateien enthalten die echten X/Y-Achsvektoren
-(RPM-Breakpoints, Last-Breakpoints etc.) — Phase 1 zeigt diese als `0..n` Indizes,
-Phase 2 zeigt echte Werte wie `[800, 1200, 1600, 2000, ...]`.
-
----
-
-### Schritt 8 – Python: `/parse`-Endpunkt
-
-**Ziel**: Der Python-Microservice kann eine ECU-Binary vollständig parsen und
-eine strukturierte Map-Liste zurückgeben.
-
-**Eingabe**: `multipart/form-data` mit `file` (Binary)
-
-**Ausgabe** (JSON):
 ```json
 {
-  "detected_ecu": "Siemens MS42",
+  "detected_ecu": "Siemens MS43",
   "confidence": 0.95,
+  "definition_source": "damos",
   "maps": [
     {
       "name": "KFZW",
@@ -320,9 +784,9 @@ eine strukturierte Map-Liste zurückgeben.
       "value_unit": "°KW",
       "x_axis_label": "n [rpm]",
       "y_axis_label": "Load",
-      "x_axis_values": [800, 1200, 1600, 2000, 2400, 3000, 3600, 4200, 4800, 5400, 6000, 6500, 6800, 7000, 7200, 7500],
-      "y_axis_values": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6],
-      "values": [[...], ...],
+      "x_axis_values": [800, 1200, 1600, 2000],
+      "y_axis_values": [0.1, 0.2, 0.3, 0.4],
+      "values": [[0, 1, 2, 3]],
       "scale_factor": 0.75,
       "scale_offset": -48.0
     }
@@ -330,91 +794,139 @@ eine strukturierte Map-Liste zurückgeben.
 }
 ```
 
-**Implementierung im Python-Service**:
-- DAMOS-/A2L-Definitionen pro ECU-Typ als Paket-Ressource (`data/ms42.json` etc.)
-- Binary einlesen, für jede MapDef: Offset lesen, uint16 BE dekodieren, Skalierung anwenden
-- Achsvektoren aus separaten Offset-Angaben in der DAMOS-Definition lesen
+### Definition of Done
 
-**Definition of Done**: `POST /parse` mit MS42-Binary gibt vollständige Map-Liste
-inkl. Achswerte zurück. Werte spot-gecheckt gegen Phase-1-Ergebnis.
+- `POST /parse` mit kompatibler MS4X-BIN gibt vollständige Map-Liste zurück.
+- Werte sind gegen Phase-1-Ergebnis spot-gecheckt.
+- Achswerte sind besser als indexbasierte Fallback-Achsen.
 
 ---
 
-### Schritt 9 – Next.js: `/api/ecu/parse` Route
+## Schritt 2B – Next.js `/api/ecu/parse` Route
 
-**Ziel**: Der Browser kann den Python-Service über eine sichere Next.js-Route erreichen
-(kein direkter Browser-zu-Python Zugriff, secret-geschützt wie `/fingerprint`).
+### Ziel
 
-**Datei**: `apps/web/src/app/api/ecu/parse/route.ts`
+Der Browser erreicht den Python-Service über eine sichere Next.js-Route.
 
-```typescript
-export async function POST(req: NextRequest): Promise<NextResponse> {
-  // Auth-Check (wie /fingerprint)
-  // FormData weiterleiten an ${ECU_PARSER_URL}/parse
-  // Timeout: 15s (Parse dauert länger als Fingerprint)
-  // Bei Fehler: { error: "ECU engine unavailable" }, status 502
-}
+### Datei
+
+```txt
+apps/web/src/app/api/ecu/parse/route.ts
 ```
 
-**Definition of Done**: `curl -X POST /api/ecu/parse -F file=@ms42.bin`
-gibt Map-Liste zurück.
+### Aufgaben
+
+- Auth-Check
+- FormData an `${ECU_PARSER_URL}/parse` weiterleiten
+- Timeout setzen
+- Fehler sauber behandeln
+- keine Python-Service-URL im Browser exposen
+
+### Definition of Done
+
+```bash
+curl -X POST /api/ecu/parse -F file=@ms43.bin
+```
+
+gibt eine Map-Liste zurück.
 
 ---
 
-### Schritt 10 – Worker: Fallback-Logik
+## Schritt 2C – Worker Fallback / Enhancement
 
-**Ziel**: Der Worker versucht nach dem WASM-Parse den Python-Service und
-merged das Ergebnis. Wenn der Service nicht antwortet, bleibt das WASM-Ergebnis.
+### Ziel
 
-**Datei**: `apps/web/src/workers/ecu-parser.worker.ts`
+Der Worker parsed zuerst lokal und versucht danach den Python-Service als Enhancement.
 
-**Neue Logik im `parse`-Case**:
-```typescript
+```ts
 case 'parse': {
   const buffer = new Uint8Array(msg.buffer)
-  // 1. WASM-Parse (immer, gibt sofortige Basis-Maps)
-  const wasmResult = await parseECU(buffer, msg.format)
 
-  // 2. Python-Service versuchen (optional, verbessert Achswerte)
-  const enhanced = await tryEnhanceWithService(buffer, wasmResult)
+  const localResult = await parseECU(buffer, msg.format, msg.definitions)
 
-  self.postMessage({ type: 'parse:success', result: enhanced })
-}
+  const enhanced = await tryEnhanceWithService(buffer, localResult)
 
-async function tryEnhanceWithService(
-  buffer: Uint8Array,
-  fallback: ParsedECU,
-): Promise<ParsedECU> {
-  try {
-    const form = new FormData()
-    form.append('file', new Blob([buffer]))
-    const res = await fetch('/api/ecu/parse', {
-      method: 'POST',
-      body: form,
-      signal: AbortSignal.timeout(10_000),
-    })
-    if (!res.ok) return fallback
-    const data = await res.json()
-    // Service-Maps haben Achswerte → überschreiben WASM-Maps
-    return { ...fallback, maps: data.maps, detectedEcu: data.detected_ecu }
-  } catch {
-    return fallback  // Offline oder Service down → WASM-Ergebnis bleibt
-  }
+  self.postMessage({
+    type: 'parse:success',
+    result: enhanced,
+  })
 }
 ```
 
-**Definition of Done**: Editor zeigt WASM-Maps sofort. Wenn Service antwortet,
-werden Maps mit echten Achswerten aktualisiert (kein Flackern da gleiche Map-IDs).
+### Regeln
+
+- Wenn Service down ist: lokales Ergebnis bleibt erhalten.
+- Wenn Service inkompatible Daten liefert: lokales Ergebnis bleibt erhalten.
+- Wenn Service bessere Achswerte liefert: Maps werden verbessert.
+- Kein UI-Fehler bei Timeout.
+
+### Definition of Done
+
+- Service erreichbar: Maps haben bessere Achswerte.
+- Service nicht erreichbar: lokale Maps bleiben.
+- Service gibt 502: Fallback greift.
+- Map-Werte Phase 1 vs. Phase 2 sind konsistent.
 
 ---
 
-### Schritt 11 – Validierung Phase 2
+# Abhängigkeiten / Reihenfolge
 
-**Ziel**: Achswerte korrekt, Fallback funktioniert zuverlässig.
+```txt
+Phase 1
 
-**Testfälle**:
-- [ ] Service erreichbar: Maps haben echte RPM/Load-Achswerte
-- [ ] Service nicht erreichbar (timeout): WASM-Maps werden angezeigt, kein Fehler
-- [ ] Service gibt 502: Fallback greift, kein UI-Fehler
-- [ ] Map-Werte Phase 1 vs. Phase 2 identisch (nur Achswerte unterscheiden sich)
-- [ ] MS42, MS43, MS45 je spot-gecheckt
+[1A MapDefinition Model]
+          ↓
+[1B Generic Extraction Engine]
+          ↓
+[1C User-XDF Upload & Parser]
+          ↓
+[1D Definition Validation & Matching]
+          ↓
+[1E Interne MS4X-Definitionen]
+          ↓
+[1F Editor Integration]
+          ↓
+[1G Basic Safety Checks]
+          ↓
+[1H WASM Build & Integration]
+          ↓
+[1I Validierung & Edge Cases]
+
+
+Phase 2
+
+[2A Python /parse Endpoint]
+          ↓
+[2B Next.js API Route]
+          ↓
+[2C Worker Fallback / Enhancement]
+```
+
+---
+
+# Nicht-Ziele
+
+Die Plattform soll in diesem Plan nicht:
+
+- illegale Emissionsmanipulation unterstützen
+- DPF/EGR/AdBlue-Off automatisieren
+- One-Click-Tuning erzeugen
+- ungeprüfte KI-Optimierungen anwenden
+- behaupten, ein File sei sicher flashbar
+- fremde MS4X/XDF/DAMOS/A2L-Dateien ungeprüft redistributen
+
+---
+
+# Wichtigste Architekturentscheidung
+
+Alle Quellen führen in dasselbe interne Format:
+
+```txt
+Definition Source
+        ↓
+MapDefinition[]
+        ↓
+extractMaps(buffer, definitions)
+```
+
+Dadurch bleiben interne Definitionen, User-XDFs und spätere DAMOS/A2L-Daten kompatibel und können dieselbe Editor-, Validierungs- und Safety-Pipeline nutzen.
