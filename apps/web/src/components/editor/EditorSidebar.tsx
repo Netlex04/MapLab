@@ -3,6 +3,7 @@
 import { Layers } from 'lucide-react'
 import { useEditorStore } from '@/lib/editor/store'
 import { MapTree } from './sidebar/MapTree'
+import { XdfUploadPanel } from './XdfUploadPanel'
 
 // ─── Skeleton Placeholder (während Parsing) ───────────────────────────────────
 
@@ -55,7 +56,7 @@ export function EditorSidebar() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden flex flex-col">
+      <div className="flex-1 overflow-y-auto flex flex-col">
         {status === 'parsing' && <SidebarSkeleton />}
         {status === 'idle' && <SidebarEmpty />}
         {status === 'ready' && <MapTree />}
@@ -65,6 +66,9 @@ export function EditorSidebar() {
           </div>
         )}
       </div>
+
+      {/* XDF upload – always accessible once a file is loaded */}
+      {(status === 'ready' || status === 'error') && <XdfUploadPanel />}
     </aside>
   )
 }

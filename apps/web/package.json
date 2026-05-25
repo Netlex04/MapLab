@@ -14,6 +14,7 @@
     "@aws-sdk/client-s3": "^3.787.0",
     "@aws-sdk/s3-request-presigner": "^3.787.0",
     "@maplab/db": "workspace:*",
+    "@maplab/definition-parser": "workspace:*",
     "@maplab/ecu-parser-wasm": "workspace:*",
     "@maplab/types": "workspace:*",
     "@maplab/ui": "workspace:*",

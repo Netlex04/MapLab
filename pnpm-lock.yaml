@@ -32,6 +32,9 @@ importers:
       '@maplab/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@maplab/definition-parser':
+        specifier: workspace:*
+        version: link:../../packages/definition-parser
       '@maplab/ecu-parser-wasm':
         specifier: workspace:*
         version: link:../../packages/ecu-parser-wasm

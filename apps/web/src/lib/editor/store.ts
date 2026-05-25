@@ -7,13 +7,24 @@ import type {
   UndoEntry,
   SafetyHighlight,
 } from '@maplab/types'
+import type { MapDefinition } from '@maplab/definition-parser'
 
 // ─── State Shape ──────────────────────────────────────────────────────────────
+
+export interface XdfState {
+  definitions: MapDefinition[]
+  fileName: string
+  warnings: string[]
+  stats: { tablesFound: number; constantsFound: number; definitionsCreated: number }
+}
 
 interface EditorState {
   // Parsed ECU data
   parsedECU: ParsedECU | null
   rawBuffer: Uint8Array | null
+
+  // XDF definitions (user-uploaded)
+  xdf: XdfState | null
 
   // UI state
   status: EditorStatus
@@ -36,6 +47,7 @@ interface EditorState {
 interface EditorActions {
   // Lifecycle
   setParsedECU: (ecu: ParsedECU, buffer: Uint8Array) => void
+  setXdf: (xdf: XdfState | null) => void
   setStatus: (status: EditorStatus, error?: string) => void
   reset: () => void
 
@@ -75,6 +87,7 @@ function getEffectiveValues(
 const INITIAL_STATE: EditorState = {
   parsedECU: null,
   rawBuffer: null,
+  xdf: null,
   status: 'idle',
   error: null,
   activeMapId: null,
@@ -104,6 +117,8 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       undoStack: [],
       redoStack: [],
     }),
+
+  setXdf: (xdf) => set({ xdf }),
 
   setStatus: (status, error = undefined) =>
     set({ status, error: error ?? null }),
