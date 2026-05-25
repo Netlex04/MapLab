@@ -42,3 +42,6 @@ coverage
 # Supabase
 supabase/.branches
 supabase/.temp
+
+# Local ROM fixtures – never commit
+local-fixtures/

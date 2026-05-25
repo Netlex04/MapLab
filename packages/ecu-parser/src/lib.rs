@@ -198,15 +198,204 @@ fn detect_ecu(buffer: &[u8]) -> Option<(&'static str, f64)> {
     None
 }
 
-// ─── Extraction helpers ───────────────────────────────────────────────────────
+// ─── Extraction engine ────────────────────────────────────────────────────────
 
 fn byte_width(data_type: &str) -> usize {
     match data_type {
         "uint8" | "int8" => 1,
         "uint16" | "int16" => 2,
         "uint32" | "int32" | "float32" => 4,
-        _ => 2, // conservative default
+        _ => 2,
     }
+}
+
+fn read_raw_value(buffer: &[u8], offset: usize, data_type: &str, big_endian: bool) -> Option<f64> {
+    let width = byte_width(data_type);
+    if offset + width > buffer.len() {
+        return None;
+    }
+    let b = &buffer[offset..offset + width];
+    Some(match data_type {
+        "uint8"  => b[0] as f64,
+        "int8"   => b[0] as i8 as f64,
+        "uint16" => if big_endian { u16::from_be_bytes([b[0], b[1]]) as f64 }
+                    else          { u16::from_le_bytes([b[0], b[1]]) as f64 },
+        "int16"  => if big_endian { i16::from_be_bytes([b[0], b[1]]) as f64 }
+                    else          { i16::from_le_bytes([b[0], b[1]]) as f64 },
+        "uint32" => { let a: [u8;4] = b.try_into().ok()?;
+                      if big_endian { u32::from_be_bytes(a) as f64 } else { u32::from_le_bytes(a) as f64 } },
+        "int32"  => { let a: [u8;4] = b.try_into().ok()?;
+                      if big_endian { i32::from_be_bytes(a) as f64 } else { i32::from_le_bytes(a) as f64 } },
+        "float32" => { let a: [u8;4] = b.try_into().ok()?;
+                       let f = if big_endian { f32::from_be_bytes(a) } else { f32::from_le_bytes(a) };
+                       if f.is_nan() || f.is_infinite() { return None; }
+                       f as f64 },
+        _ => return None,
+    })
+}
+
+fn resolve_axis(
+    buffer: &[u8],
+    axis: &Option<AxisDefinition>,
+    count: usize,
+    map_id: &str,
+    label: &str,
+) -> (ExtractionAxis, Vec<MapWarning>) {
+    let mut warnings: Vec<MapWarning> = Vec::new();
+    let (ax_label, ax_unit) = axis
+        .as_ref()
+        .map(|ax| (ax.label.clone(), ax.unit.clone()))
+        .unwrap_or((None, None));
+
+    if let Some(ax) = axis {
+        match ax.source.as_str() {
+            "inline" => {
+                if let Some(vals) = &ax.values {
+                    if vals.len() == count {
+                        return (ExtractionAxis { label: ax_label, unit: ax_unit, values: vals.clone() }, warnings);
+                    }
+                    warnings.push(MapWarning {
+                        code: "AXIS_LENGTH_MISMATCH".to_string(),
+                        severity: "warning".to_string(),
+                        message: format!(
+                            "{label}-axis has {} inline values but map dimension is {count}",
+                            vals.len()
+                        ),
+                        map_id: Some(map_id.to_string()),
+                        offset: None,
+                    });
+                }
+            }
+            "address" => {
+                if let (Some(off), Some(len)) = (ax.offset, ax.length) {
+                    let dt = ax.data_type.as_deref().unwrap_or("uint16");
+                    let be = ax.endianness.as_deref().unwrap_or("big") == "big";
+                    let w = byte_width(dt);
+                    let mut values = Vec::with_capacity(len);
+                    let mut any_failed = false;
+
+                    for i in 0..len {
+                        if let Some(raw) = read_raw_value(buffer, off + i * w, dt, be) {
+                            let scaled = ax.scale.as_ref()
+                                .map_or(raw, |s| raw * s.factor + s.offset);
+                            values.push(scaled);
+                        } else {
+                            any_failed = true;
+                            values.push(i as f64);
+                        }
+                    }
+
+                    if any_failed {
+                        warnings.push(MapWarning {
+                            code: "AXIS_READ_ERROR".to_string(),
+                            severity: "warning".to_string(),
+                            message: format!("{label}-axis at 0x{off:X} partially out of buffer"),
+                            map_id: Some(map_id.to_string()),
+                            offset: Some(off),
+                        });
+                    }
+
+                    return (ExtractionAxis { label: ax_label, unit: ax_unit, values }, warnings);
+                }
+
+                warnings.push(MapWarning {
+                    code: "AXIS_ADDRESS_MISSING".to_string(),
+                    severity: "info".to_string(),
+                    message: format!("{label}-axis source is 'address' but offset/length is missing"),
+                    map_id: Some(map_id.to_string()),
+                    offset: None,
+                });
+            }
+            _ => {} // "index", "calculated", "unknown" → fall through to index
+        }
+    }
+
+    // Index fallback
+    let values: Vec<f64> = (0..count).map(|i| i as f64).collect();
+    (ExtractionAxis { label: ax_label, unit: ax_unit, values }, warnings)
+}
+
+fn extract_single_map(buffer: &[u8], def: &MapDefinition) -> Result<ExtractedMap, MapWarning> {
+    let big_endian = def.endianness == "big";
+    let width = byte_width(&def.data_type);
+    let required = def.offset + def.rows * def.cols * width;
+
+    if required > buffer.len() {
+        return Err(MapWarning {
+            code: "OFFSET_OUT_OF_BOUNDS".to_string(),
+            severity: "warning".to_string(),
+            message: format!(
+                "Map '{}' at 0x{:X} needs {required} bytes, buffer is {} — skipped",
+                def.name, def.offset, buffer.len()
+            ),
+            map_id: Some(def.id.clone()),
+            offset: Some(def.offset),
+        });
+    }
+
+    let factor = def.value.factor;
+    let scale_offset = def.value.offset;
+    let mut raw_values: Vec<Vec<f64>> = Vec::with_capacity(def.rows);
+    let mut scaled_values: Vec<Vec<f64>> = Vec::with_capacity(def.rows);
+
+    for row in 0..def.rows {
+        let mut raw_row = Vec::with_capacity(def.cols);
+        let mut scaled_row = Vec::with_capacity(def.cols);
+        for col in 0..def.cols {
+            let byte_offset = def.offset + (row * def.cols + col) * width;
+            let raw = read_raw_value(buffer, byte_offset, &def.data_type, big_endian)
+                .unwrap_or(0.0); // bounds already verified above
+            raw_row.push(raw);
+            scaled_row.push(raw * factor + scale_offset);
+        }
+        raw_values.push(raw_row);
+        scaled_values.push(scaled_row);
+    }
+
+    let mut map_warnings: Vec<MapWarning> = Vec::new();
+
+    let (x_axis, xw) = resolve_axis(buffer, &def.x_axis, def.cols, &def.id, "x");
+    let (y_axis, yw) = resolve_axis(buffer, &def.y_axis, def.rows, &def.id, "y");
+    map_warnings.extend(xw);
+    map_warnings.extend(yw);
+
+    // Flag suspiciously blank data (erased flash)
+    let all_zero = raw_values.iter().all(|r| r.iter().all(|&v| v == 0.0));
+    let all_ff   = raw_values.iter().all(|r| r.iter().all(|&v| v == 255.0));
+    if all_zero || all_ff {
+        map_warnings.push(MapWarning {
+            code: "SUSPICIOUS_MAP_DATA".to_string(),
+            severity: "info".to_string(),
+            message: format!(
+                "Map '{}' contains only {} — may be blank or wrong offset",
+                def.name, if all_zero { "0x00" } else { "0xFF" }
+            ),
+            map_id: Some(def.id.clone()),
+            offset: Some(def.offset),
+        });
+    }
+
+    Ok(ExtractedMap {
+        id: def.id.clone(),
+        definition_id: def.id.clone(),
+        name: def.name.clone(),
+        category: def.category.clone(),
+        offset: def.offset,
+        rows: def.rows,
+        cols: def.cols,
+        value_unit: def.value.unit.clone(),
+        x_axis,
+        y_axis,
+        values: scaled_values,
+        raw_values,
+        source: ExtractionMapSource {
+            source_type: def.source.source_type.clone(),
+            name: def.source.name.clone(),
+            version: def.source.version.clone(),
+        },
+        confidence: def.confidence.clone(),
+        warnings: map_warnings,
+    })
 }
 
 // ─── SHA-256 helper ───────────────────────────────────────────────────────────
@@ -266,9 +455,9 @@ impl ECUParser {
 
     /// Extract maps from a MapDefinition[] passed as JsValue (JSON array).
     ///
-    /// Phase 1A: validates that definitions deserialize correctly and wires up
-    /// the stable ID + output types. Actual byte extraction is implemented in
-    /// Phase 1B (extraction/mod.rs).
+    /// Deserializes definitions, runs the extraction engine over the buffer,
+    /// and returns ExtractionResult { maps, warnings } as JsValue.
+    /// Invalid or out-of-bounds maps produce warnings and are skipped — no panics.
     pub fn extract_maps_from_definitions(&self, definitions_js: JsValue) -> JsValue {
         let definitions: Vec<MapDefinition> = match serde_wasm_bindgen::from_value(definitions_js) {
             Ok(d) => d,
@@ -287,26 +476,17 @@ impl ECUParser {
             }
         };
 
-        // Phase 1B will replace this with the real extraction engine.
-        // For now: validate each definition fits within the buffer.
+        let mut maps: Vec<ExtractedMap> = Vec::with_capacity(definitions.len());
         let mut warnings: Vec<MapWarning> = Vec::new();
+
         for def in &definitions {
-            let required_bytes = def.offset + def.rows * def.cols * byte_width(&def.data_type);
-            if required_bytes > self.buffer.len() {
-                warnings.push(MapWarning {
-                    code: "OFFSET_OUT_OF_BOUNDS".to_string(),
-                    severity: "warning".to_string(),
-                    message: format!(
-                        "Map '{}' at 0x{:X} requires {} bytes but buffer is only {} bytes",
-                        def.name, def.offset, required_bytes, self.buffer.len()
-                    ),
-                    map_id: Some(def.id.clone()),
-                    offset: Some(def.offset),
-                });
+            match extract_single_map(&self.buffer, def) {
+                Ok(map) => maps.push(map),
+                Err(w) => warnings.push(w),
             }
         }
 
-        let result = ExtractionResult { maps: vec![], warnings };
+        let result = ExtractionResult { maps, warnings };
         serde_wasm_bindgen::to_value(&result).unwrap_or(JsValue::NULL)
     }
 
