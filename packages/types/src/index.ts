@@ -143,6 +143,7 @@ export interface ParsedECU {
   maps: ECUMap[]
   detectedEcu: string | null
   confidence: number
+  warnings: SafetyFlag[]
 }
 
 export interface HexSlice {

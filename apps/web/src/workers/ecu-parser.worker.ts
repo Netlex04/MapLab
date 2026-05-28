@@ -10,9 +10,11 @@ import {
   fingerprintROM,
   loadInternalDefinition,
   extractMaps,
+  matchDefinitions,
+  runSafetyChecks,
 } from '@maplab/definition-parser'
 import type { MapDefinition } from '@maplab/definition-parser'
-import type { FileFormat, ParsedECU, ECUMap, MapType } from '@maplab/types'
+import type { FileFormat, ParsedECU, ECUMap, MapType, SafetyFlag } from '@maplab/types'
 
 // ─── Message Protocol ─────────────────────────────────────────────────────────
 
@@ -57,6 +59,8 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
 
         // Base parse: checksum, size, format metadata
         const result = await parseECU(buffer, msg.format)
+        // WASM result doesn't include the warnings field; initialize it here.
+        result.warnings = []
 
         // Fingerprint the ROM to identify ECU + software version
         const fp = fingerprintROM(buffer)
@@ -74,22 +78,38 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
         }
 
         if (definitions.length > 0) {
+          const matchResult = matchDefinitions(buffer, definitions)
           const extraction = extractMaps(buffer, definitions)
-          result.maps = extraction.maps.map((m): ECUMap => ({
-            id: m.id,
-            fileVersionId: '',
-            name: m.name,
-            aiLabel: null,
-            type: toMapType(m.category),
-            offset: m.offset,
-            rows: m.rows,
-            cols: m.cols,
-            xAxisLabel: m.xAxis.label ?? null,
-            yAxisLabel: m.yAxis.label ?? null,
-            valueUnit: m.valueUnit ?? null,
-            values: m.values,
-            scaledValues: null,
-            safetyFlags: null,
+          const safety = runSafetyChecks(buffer, definitions, extraction, matchResult)
+
+          result.maps = extraction.maps.map((m): ECUMap => {
+            const mapFlags: SafetyFlag[] = (safety.mapWarnings[m.id] ?? []).map((w) => ({
+              ruleId: w.code,
+              severity: w.severity,
+              message: w.message,
+            }))
+            return {
+              id: m.id,
+              fileVersionId: '',
+              name: m.name,
+              aiLabel: null,
+              type: toMapType(m.category),
+              offset: m.offset,
+              rows: m.rows,
+              cols: m.cols,
+              xAxisLabel: m.xAxis.label ?? null,
+              yAxisLabel: m.yAxis.label ?? null,
+              valueUnit: m.valueUnit ?? null,
+              values: m.values,
+              scaledValues: null,
+              safetyFlags: mapFlags.length > 0 ? mapFlags : null,
+            }
+          })
+
+          result.warnings = safety.fileWarnings.map((w): SafetyFlag => ({
+            ruleId: w.code,
+            severity: w.severity,
+            message: w.message,
           }))
         }
 

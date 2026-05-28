@@ -244,6 +244,19 @@ KI soll helfen — nicht blind tunen.
 
 ---
 
+# 4.8 Echtzeit-Kollaboration an Files
+
+## Ziel
+
+Mehrere Nutzer können gleichzeitig an derselben ECU-Datei arbeiten — ähnlich wie Figma Multiplayer:
+
+- Änderungen anderer Nutzer sind live sichtbar (Cursor, markierte Cells)
+- Kommentare & Annotationen direkt in Maps
+- Sperren einzelner Maps/Tabellen, um Konflikte zu vermeiden
+- Session-History: wer hat wann was geändert
+
+---
+
 ## Funktionen
 
 ### Map-Erkennung

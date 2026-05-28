@@ -10,6 +10,7 @@ import { EditorSidebar } from './EditorSidebar'
 import { EditorCanvas } from './EditorCanvas'
 import { CommitDialog } from './CommitDialog'
 import { AICopilotPanel } from './sidebar/AICopilotPanel'
+import { SafetyWarningsPanel } from './SafetyWarningsPanel'
 
 // ─── Status Bar ───────────────────────────────────────────────────────────────
 
@@ -126,6 +127,8 @@ export function EditorShell({ projectId, projectName, branchId }: EditorShellPro
         copilotOpen={copilotOpen}
         onToggleCopilot={() => setCopilotOpen((o) => !o)}
       />
+
+      <SafetyWarningsPanel />
 
       <div className="flex flex-1 overflow-hidden">
         <EditorSidebar />

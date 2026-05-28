@@ -67,6 +67,7 @@ export async function parseECU(buffer: Uint8Array, format: FileFormat): Promise<
     maps: [],
     detectedEcu: null,
     confidence: 0,
+    warnings: [],
   }
 }
 
