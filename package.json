@@ -14,7 +14,8 @@
     "typecheck": "turbo typecheck",
     "test": "turbo test",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
-    "clean": "turbo clean && find . -name 'node_modules' -type d -prune -exec rm -rf '{}' +"
+    "clean": "turbo clean && find . -name 'node_modules' -type d -prune -exec rm -rf '{}' +",
+    "wasm:build": "wasm-pack build packages/ecu-parser --target web --out-dir $PWD/packages/ecu-parser-wasm/wasm && mkdir -p apps/web/public/wasm && cp packages/ecu-parser-wasm/wasm/ecu_parser.js packages/ecu-parser-wasm/wasm/ecu_parser_bg.wasm apps/web/public/wasm/"
   },
   "devDependencies": {
     "turbo": "^2.5.4",

@@ -32,15 +32,17 @@ interface WasmECUParser {
 
 async function loadWasm(): Promise<WasmModule | null> {
   try {
-    // webpackIgnore / turbopackIgnore prevent the bundler from resolving this
-    // at build time. If the file is absent, the catch block activates the JS stub.
+    // The WASM files are served as static assets from /wasm/ (apps/web/public/wasm/).
+    // Absolute URL works in both the main thread and web workers, and is compatible
+    // with Turbopack (dev) and webpack (prod) without special bundler config.
+    // If the file is absent (local dev without a build), the catch block falls back to the JS stub.
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
-    const wasm = await import(/* webpackIgnore: true *//* turbopackIgnore: true */ '../wasm/ecu_parser.js')
+    const wasm = await import(/* webpackIgnore: true *//* turbopackIgnore: true */ '/wasm/ecu_parser.js')
     await wasm.default()
     return wasm as WasmModule
   } catch {
-    // WASM noch nicht gebaut – Stub-Modus aktiv
+    // WASM nicht verfügbar – Stub-Modus aktiv
     return null
   }
 }
