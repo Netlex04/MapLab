@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { ChevronRight, Search, X } from 'lucide-react'
+import { ChevronRight, Search, X, ShieldAlert } from 'lucide-react'
 import { useEditorStore } from '@/lib/editor/store'
 import type { MapType, ECUMap } from '@maplab/types'
 import { MapTreeItem } from './MapTreeItem'
@@ -132,6 +132,31 @@ function SearchResults({ maps, activeMapId, pendingChanges, setActiveMap, query 
   )
 }
 
+// ─── Mismatch Gate ────────────────────────────────────────────────────────────
+
+interface MismatchGateProps {
+  mapCount: number
+  onConfirm: () => void
+}
+
+function MismatchGate({ mapCount, onConfirm }: MismatchGateProps) {
+  return (
+    <div className="flex flex-col items-center gap-3 px-3 py-4 text-center">
+      <ShieldAlert className="size-6 text-destructive/70 shrink-0" />
+      <p className="text-label text-muted-foreground leading-relaxed">
+        Definition passt nicht zur ROM. Maps könnten falsche Werte enthalten.
+      </p>
+      <button
+        type="button"
+        onClick={onConfirm}
+        className="text-label text-muted-foreground/60 underline underline-offset-2 hover:text-muted-foreground transition-colors"
+      >
+        {mapCount === 1 ? '1 Map trotzdem anzeigen' : `${mapCount} Maps trotzdem anzeigen`}
+      </button>
+    </div>
+  )
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function MapTree() {
@@ -142,6 +167,7 @@ export function MapTree() {
 
   const [query, setQuery] = useState('')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<MapType>>(new Set())
+  const [mismatchConfirmed, setMismatchConfirmed] = useState(false)
 
   const grouped = useMemo(() => {
     if (!parsedECU) return []
@@ -167,6 +193,22 @@ export function MapTree() {
   }
 
   if (!parsedECU) return null
+
+  if (
+    parsedECU.matchStatus === 'mismatch' &&
+    parsedECU.maps.length > 0 &&
+    !mismatchConfirmed
+  ) {
+    return (
+      <MismatchGate
+        mapCount={parsedECU.maps.length}
+        onConfirm={() => {
+          setMismatchConfirmed(true)
+          setActiveMap(parsedECU.maps[0]!.id)
+        }}
+      />
+    )
+  }
 
   return (
     <div className="flex flex-col h-full">

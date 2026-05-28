@@ -14,6 +14,7 @@ export type MapType =
   | 'UNKNOWN'
 
 export type SafetySeverity = 'info' | 'warning' | 'critical'
+export type DefinitionMatchStatus = 'exact' | 'likely' | 'weak' | 'mismatch' | 'unknown'
 
 // ─── Domain Types ─────────────────────────────────────────────────────────────
 
@@ -144,6 +145,7 @@ export interface ParsedECU {
   detectedEcu: string | null
   confidence: number
   warnings: SafetyFlag[]
+  matchStatus?: DefinitionMatchStatus
 }
 
 export interface HexSlice {

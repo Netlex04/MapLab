@@ -14,7 +14,7 @@ import {
   runSafetyChecks,
 } from '@maplab/definition-parser'
 import type { MapDefinition } from '@maplab/definition-parser'
-import type { FileFormat, ParsedECU, ECUMap, MapType, SafetyFlag } from '@maplab/types'
+import type { FileFormat, ParsedECU, ECUMap, MapType, SafetyFlag, DefinitionMatchStatus } from '@maplab/types'
 
 // ─── Message Protocol ─────────────────────────────────────────────────────────
 
@@ -69,16 +69,26 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
           result.confidence = fp.confidence
         }
 
-        // Determine definitions to use
+        // Determine definitions to use.
         // Passed definitions (XDF) take priority over internal ones.
         let definitions: MapDefinition[] = msg.definitions
+        let usingInternalDefinition = false
         if (definitions.length === 0 && fp.ecu !== null && fp.softwareVersion !== null) {
           const internalDefs = await loadInternalDefinition(fp.ecu, fp.softwareVersion)
-          if (internalDefs !== null) definitions = internalDefs
+          if (internalDefs !== null) {
+            definitions = internalDefs
+            usingInternalDefinition = true
+          }
         }
 
         if (definitions.length > 0) {
           const matchResult = matchDefinitions(buffer, definitions)
+          // Fingerprint (byte-level) already verified the ROM; trust it over
+          // the statistical matchDefinitions score which can false-negative on
+          // valid ROMs (e.g. blank map sampling, axis scoring edge cases).
+          result.matchStatus = (usingInternalDefinition && fp.confidence === 1.0)
+            ? 'exact'
+            : (matchResult.status as DefinitionMatchStatus)
           const extraction = extractMaps(buffer, definitions)
           const safety = runSafetyChecks(buffer, definitions, extraction, matchResult)
 

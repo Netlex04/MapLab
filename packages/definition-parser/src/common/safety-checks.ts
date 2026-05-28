@@ -197,7 +197,7 @@ export function runSafetyChecks(
       }
     }
 
-    // Axis plausibility: flat axis (all equal values)
+    // Axis plausibility: flat or non-monotonic axes
     const axes = [
       { axis: map.xAxis, label: 'X-Achse' },
       { axis: map.yAxis, label: 'Y-Achse' },
@@ -212,6 +212,23 @@ export function runSafetyChecks(
             message: `Map '${map.name}' ${label}: alle Achswerte sind gleich (${axis.values[0]}). Achse ist nicht aufgelöst.`,
             mapId: map.id,
           })
+        } else {
+          // Check strict monotonic increase (engine map axes should always increase)
+          let monotonic = true
+          for (let i = 1; i < axis.values.length; i++) {
+            if (axis.values[i]! <= axis.values[i - 1]!) {
+              monotonic = false
+              break
+            }
+          }
+          if (!monotonic) {
+            warnings.push({
+              code: 'AXIS_NOT_MONOTONIC',
+              severity: 'info',
+              message: `Map '${map.name}' ${label}: Achswerte sind nicht streng monoton steigend. Könnte auf falsche Definition oder Adresse hindeuten.`,
+              mapId: map.id,
+            })
+          }
         }
       }
     }

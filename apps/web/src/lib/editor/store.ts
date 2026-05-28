@@ -111,7 +111,9 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       rawBuffer: buffer,
       status: 'ready',
       error: null,
-      activeMapId: ecu.maps[0]?.id ?? null,
+      // On mismatch the user must confirm before navigating maps; keep null so
+      // the canvas shows the empty state instead of rendering suspicious values.
+      activeMapId: ecu.matchStatus === 'mismatch' ? null : (ecu.maps[0]?.id ?? null),
       pendingChanges: {},
       selectedCells: [],
       isDirty: false,
