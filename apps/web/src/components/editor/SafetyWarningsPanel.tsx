@@ -78,11 +78,13 @@ function WarningRow({ flag }: { flag: SafetyFlag }) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+const EMPTY_WARNINGS: SafetyFlag[] = []
+
 export function SafetyWarningsPanel() {
   const [expanded, setExpanded] = useState(false)
   const [dismissed, setDismissed] = useState(false)
 
-  const warnings = useEditorStore((s) => s.parsedECU?.warnings ?? [])
+  const warnings = useEditorStore((s) => s.parsedECU?.warnings ?? EMPTY_WARNINGS)
 
   if (warnings.length === 0 || dismissed) return null
 
