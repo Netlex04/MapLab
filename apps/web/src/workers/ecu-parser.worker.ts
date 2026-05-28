@@ -31,6 +31,88 @@ export type WorkerOutbound =
   | { type: 'hex-slice:success'; offset: number; bytes: number[]; ascii: string[] }
   | { type: 'hex-slice:error'; message: string }
 
+// ─── Service Enhancement ──────────────────────────────────────────────────────
+
+interface ServiceMap {
+  name: string
+  category: string
+  offset: number
+  rows: number
+  cols: number
+  value_unit: string | null
+  x_axis_label: string | null
+  y_axis_label: string | null
+  x_axis_values: number[]
+  y_axis_values: number[]
+  values: number[][]
+  scale_factor: number
+  scale_offset: number
+  source: string
+  confidence: string
+}
+
+interface ServiceParseResponse {
+  detected_ecu: string | null
+  confidence: number
+  definition_source: string
+  map_count: number
+  maps: ServiceMap[]
+}
+
+/**
+ * Attempts to enhance localResult by calling the server-side /api/ecu/parse
+ * endpoint. Only runs when the local parse produced no maps — the server uses
+ * the same internal definitions, so calling it when maps already exist would
+ * duplicate work without adding value until DAMOS/A2L axes are available.
+ *
+ * All errors are swallowed: the local result is always the authoritative fallback.
+ */
+async function tryEnhanceWithService(
+  buffer: Uint8Array,
+  localResult: ParsedECU,
+): Promise<ParsedECU> {
+  if (localResult.maps.length > 0) return localResult
+
+  try {
+    const blob = new Blob([buffer.buffer as ArrayBuffer], { type: 'application/octet-stream' })
+    const form = new FormData()
+    form.append('file', blob, 'rom.bin')
+
+    const res = await fetch(`${self.location.origin}/api/ecu/parse`, {
+      method: 'POST',
+      body: form,
+      signal: AbortSignal.timeout(30_000),
+    })
+
+    if (!res.ok) return localResult
+
+    const data = (await res.json()) as ServiceParseResponse
+    if (!data.maps || data.maps.length === 0) return localResult
+
+    return {
+      ...localResult,
+      maps: data.maps.map((m, i): ECUMap => ({
+        id: `svc_${m.offset.toString(16)}_${i}`,
+        fileVersionId: '',
+        name: m.name || null,
+        aiLabel: null,
+        type: toMapType(m.category),
+        offset: m.offset,
+        rows: m.rows,
+        cols: m.cols,
+        xAxisLabel: m.x_axis_label,
+        yAxisLabel: m.y_axis_label,
+        valueUnit: m.value_unit,
+        values: m.values,
+        scaledValues: null,
+        safetyFlags: null,
+      })),
+    }
+  } catch {
+    return localResult
+  }
+}
+
 // ─── Category → MapType ───────────────────────────────────────────────────────
 
 const CATEGORY_TO_TYPE: Partial<Record<string, MapType>> = {
@@ -123,7 +205,8 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
           }))
         }
 
-        const response: WorkerOutbound = { type: 'parse:success', result }
+        const enhanced = await tryEnhanceWithService(buffer, result)
+        const response: WorkerOutbound = { type: 'parse:success', result: enhanced }
         self.postMessage(response)
       } catch (err) {
         const response: WorkerOutbound = {

@@ -19,6 +19,7 @@ import hashlib
 import os
 
 from fingerprint import fingerprint_binary, FingerprintResult
+from parse import parse_binary
 
 app = FastAPI(
     title="MapLab ECU Engine",
@@ -59,6 +60,30 @@ class SafetyReport(BaseModel):
     score: int  # 0–100
     warnings: list[SafetyWarning]
     passed: bool
+
+class ParsedMapItem(BaseModel):
+    name: str
+    category: str
+    offset: int
+    rows: int
+    cols: int
+    value_unit: Optional[str] = None
+    x_axis_label: Optional[str] = None
+    y_axis_label: Optional[str] = None
+    x_axis_values: list[float]
+    y_axis_values: list[float]
+    values: list[list[float]]
+    scale_factor: float
+    scale_offset: float
+    source: str
+    confidence: str
+
+class ParseResponse(BaseModel):
+    detected_ecu: Optional[str] = None
+    confidence: float
+    definition_source: str
+    map_count: int
+    maps: list[ParsedMapItem]
 
 class DiffResult(BaseModel):
     base_checksum: str
@@ -134,21 +159,60 @@ async def parse_metadata(
     )
 
 
-@app.post("/parse/full")
-async def parse_full(
+@app.post("/parse", response_model=ParseResponse)
+async def parse_ecu(
     file: UploadFile,
+    include_unknown: bool = False,
     _: None = Depends(verify_internal_secret),
 ):
-    """Vollständige ECU-Analyse inkl. aller Maps. (Stub – Implementierung folgt)"""
-    content = await file.read()
-    checksum = hashlib.sha256(content).hexdigest()
+    """
+    Full ECU parse: fingerprint + extract maps using internal definitions.
 
-    return {
-        "checksum": checksum,
-        "size": len(content),
-        "maps": [],
-        "message": "Full parsing not yet implemented – coming in Phase 2",
-    }
+    Returns maps with known tuning categories by default.
+    Pass include_unknown=true to include all maps (much larger response).
+    """
+    content = await file.read()
+    fp = fingerprint_binary(content)
+    result = parse_binary(content, fp, include_unknown=include_unknown)
+
+    maps = [
+        ParsedMapItem(
+            name=m["name"],
+            category=m["category"],
+            offset=m["offset"],
+            rows=m["rows"],
+            cols=m["cols"],
+            value_unit=m.get("value_unit"),
+            x_axis_label=m.get("x_axis_label"),
+            y_axis_label=m.get("y_axis_label"),
+            x_axis_values=m["x_axis_values"],
+            y_axis_values=m["y_axis_values"],
+            values=m["values"],
+            scale_factor=m["scale_factor"],
+            scale_offset=m["scale_offset"],
+            source=m["source"],
+            confidence=m["confidence"],
+        )
+        for m in result["maps"]
+    ]
+
+    return ParseResponse(
+        detected_ecu=result["detected_ecu"],
+        confidence=result["confidence"],
+        definition_source=result["definition_source"],
+        map_count=len(maps),
+        maps=maps,
+    )
+
+
+@app.post("/parse/full", response_model=ParseResponse)
+async def parse_full(
+    file: UploadFile,
+    include_unknown: bool = False,
+    _: None = Depends(verify_internal_secret),
+):
+    """Alias for POST /parse – kept for backwards compatibility."""
+    return await parse_ecu(file, include_unknown, _)
 
 
 @app.post("/checksum/validate", response_model=ChecksumResult)
