@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname, '../../'),
 
-  transpilePackages: ['@maplab/ui', '@maplab/ecu-parser-wasm'],
+  transpilePackages: ['@maplab/ui', '@maplab/ecu-parser-wasm', 'three', '@react-three/fiber', '@react-three/drei'],
   experimental: {},
   webpack: (config, { isServer }) => {
     // WASM-Dateien als Asset laden statt durch regulären Webpack-Loader

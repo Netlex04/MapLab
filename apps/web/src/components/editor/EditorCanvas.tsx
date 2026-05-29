@@ -1,8 +1,9 @@
 'use client'
 
-import { Binary, Box, GitCompare } from 'lucide-react'
+import { Binary, GitCompare } from 'lucide-react'
 import { useEditorStore } from '@/lib/editor/store'
 import { Map2DView } from './views/Map2DView'
+import { Map3DView } from './views/Map3DView'
 import { HexView } from './views/HexView'
 
 // ─── Placeholder-Karten für nicht-implementierte Views ────────────────────────
@@ -12,7 +13,7 @@ function ViewPlaceholder({
   label,
   description,
 }: {
-  icon: React.ElementType
+  icon: React.ComponentType<{ className?: string }>
   label: string
   description: string
 }) {
@@ -91,13 +92,7 @@ export function EditorCanvas() {
     case 'hex':
       return <HexView />
     case 'map-3d':
-      return (
-        <ViewPlaceholder
-          icon={Box}
-          label="3D Surface View"
-          description="Kommt nach dem MVP."
-        />
-      )
+      return <Map3DView />
     case 'diff':
       return (
         <ViewPlaceholder
