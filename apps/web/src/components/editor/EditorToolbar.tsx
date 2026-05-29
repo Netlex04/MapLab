@@ -1,10 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { Undo2, Redo2, GitCommitHorizontal, Cpu } from 'lucide-react'
+import { useState } from 'react'
+import { Undo2, Redo2, GitCommitHorizontal, Cpu, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { writeMapValues } from '@maplab/ecu-parser-wasm'
 import {
   useEditorStore,
   selectCanUndo,
@@ -42,7 +44,30 @@ export function EditorToolbar({ projectId, projectName, onCommit, copilotOpen, o
   const canUndo = useEditorStore(selectCanUndo)
   const canRedo = useEditorStore(selectCanRedo)
 
+  const [isDownloading, setIsDownloading] = useState(false)
+
   const isReady = status === 'ready'
+
+  async function handleDownload() {
+    const { rawBuffer, parsedECU, pendingChanges } = useEditorStore.getState()
+    if (!rawBuffer || !parsedECU) return
+    setIsDownloading(true)
+    try {
+      const modified = await writeMapValues(rawBuffer, parsedECU.maps, pendingChanges)
+      const ab = modified.buffer.slice(
+        modified.byteOffset,
+        modified.byteOffset + modified.byteLength,
+      ) as ArrayBuffer
+      const url = URL.createObjectURL(new Blob([ab], { type: 'application/octet-stream' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${projectName.replace(/\s+/g, '_')}.bin`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setIsDownloading(false)
+    }
+  }
 
   return (
     <header className="flex h-12 shrink-0 items-center border-b border-border bg-card px-3 gap-2">
@@ -142,6 +167,22 @@ export function EditorToolbar({ projectId, projectName, onCommit, copilotOpen, o
           <span className="text-[10px]">✦</span>
           Copilot
         </Button>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleDownload}
+              disabled={!isReady || isDownloading}
+              className="size-8"
+              aria-label="BIN herunterladen"
+            >
+              <Download className="size-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>BIN herunterladen</TooltipContent>
+        </Tooltip>
 
         <Button
           size="sm"

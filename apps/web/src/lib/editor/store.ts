@@ -215,8 +215,25 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
 
   // ── Post-commit ─────────────────────────────────────────────────────────────
 
-  commitConfirmed: () =>
-    set({ pendingChanges: {}, isDirty: false, undoStack: [], redoStack: [] }),
+  commitConfirmed: () => {
+    const { parsedECU, pendingChanges } = get()
+    if (!parsedECU || Object.keys(pendingChanges).length === 0) {
+      set({ pendingChanges: {}, isDirty: false, undoStack: [], redoStack: [] })
+      return
+    }
+    // Bake pending changes into the baseline so the UI doesn't revert after commit.
+    const updatedMaps = parsedECU.maps.map((m) => {
+      const changed = pendingChanges[m.id]
+      return changed ? { ...m, values: changed } : m
+    })
+    set({
+      parsedECU: { ...parsedECU, maps: updatedMaps },
+      pendingChanges: {},
+      isDirty: false,
+      undoStack: [],
+      redoStack: [],
+    })
+  },
 }))
 
 // ─── Selectors ────────────────────────────────────────────────────────────────
