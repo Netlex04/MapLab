@@ -1,4 +1,27 @@
-# MapLab
+<div align="center">
+
+```
+ __  __              _          _
+|  \/  |  __ _  _ __| |    __ _| |__
+| |\/| | / _` || '_ \ |   / _` | '_ \
+| |  | || (_| || |_) | |_| (_| | |_) |
+|_|  |_| \__,_|| .__/|_____\__,_|_.__/
+                |_|
+```
+
+**Version control for ECU tunes. Built for the people who chase the perfect map.**
+
+[![Rust](https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org)
+[![Next.js](https://img.shields.io/badge/Next.js_15-black?style=flat-square&logo=next.js)](https://nextjs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Prisma](https://img.shields.io/badge/Prisma-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io)
+[![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=flat-square&logo=supabase&logoColor=white)](https://supabase.com)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+[![Python](https://img.shields.io/badge/Python_FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+
+</div>
+
+---
 
 MapLab is a version control and community platform built specifically for ECU tuning directly in your browser. It lets tuners upload, track, and compare binary tune files (BIN, XDF, A2L, DAMOS) across branches and commits — similar to Git, but purpose-built for ECU workflows.
 
