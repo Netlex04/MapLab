@@ -104,40 +104,60 @@ export async function writeMapValues(
   maps: ECUMap[],
   changes: Record<string, number[][]>,
 ): Promise<Uint8Array> {
-  if (!wasmModule) {
-    wasmModule = await loadWasm()
-  }
+  // The WASM write path is intentionally bypassed: the WASM extract_maps()
+  // populates its internal registry using WASM-internal definitions, which
+  // produce different map IDs than the TypeScript definition-parser. As a
+  // result, write_map_values never finds the map and silently returns the
+  // original buffer unchanged (same checksum → same FileVersion on commit).
+  // The JS implementation below is authoritative for all write operations.
 
-  if (wasmModule) {
-    const parser = new wasmModule.ECUParser(buffer, 'BIN')
-    // extract_maps populates the parser's internal map registry so
-    // write_map_values can look up offsets by map ID.
-    parser.extract_maps()
-    let lastResult: Uint8Array = buffer
-    for (const [mapId, values] of Object.entries(changes)) {
-      lastResult = parser.write_map_values(mapId, values)
-    }
-    // Slice out of WASM linear memory before free() invalidates it
-    const result = lastResult.slice()
-    parser.free()
-    return result
-  }
-
-  // JS fallback – uint16 big-endian at each map's byte offset
+  // JS fallback – reverse-scale and write with correct dataType/endianness
   const output = buffer.slice()
   const view = new DataView(output.buffer)
   for (const [mapId, values] of Object.entries(changes)) {
     const map = maps.find((m) => m.id === mapId)
     if (!map) continue
+
+    const factor     = map.scaleFactor ?? 1
+    const offset     = map.scaleOffset ?? 0
+    const dataType   = map.dataType    ?? 'uint16'
+    const le         = (map.endianness ?? 'big') === 'little'
+    const bw         = _byteWidth(dataType)
+
     for (let row = 0; row < values.length; row++) {
       for (let col = 0; col < (values[row]?.length ?? 0); col++) {
-        const byteOffset = map.offset + (row * map.cols + col) * 2
-        if (byteOffset + 2 > output.byteLength) continue
-        view.setUint16(byteOffset, Math.round(values[row]![col]!), false) // big-endian
+        const scaledVal  = values[row]![col]!
+        // Reverse the scaling: raw = (scaled - scaleOffset) / scaleFactor
+        const rawVal     = factor !== 0 ? (scaledVal - offset) / factor : scaledVal
+        const byteOffset = map.offset + (row * map.cols + col) * bw
+        if (byteOffset + bw > output.byteLength) continue
+        _writeValue(view, byteOffset, dataType, le, rawVal)
       }
     }
   }
   return output
+}
+
+function _byteWidth(dataType: string): number {
+  switch (dataType) {
+    case 'uint8':  case 'int8':               return 1
+    case 'uint16': case 'int16':              return 2
+    case 'uint32': case 'int32':
+    case 'float32':                           return 4
+    default:                                  return 2
+  }
+}
+
+function _writeValue(view: DataView, offset: number, dataType: string, le: boolean, value: number): void {
+  switch (dataType) {
+    case 'uint8':   view.setUint8(offset,  Math.max(0,       Math.min(255,   Math.round(value)))); break
+    case 'int8':    view.setInt8(offset,   Math.max(-128,    Math.min(127,   Math.round(value)))); break
+    case 'uint16':  view.setUint16(offset, Math.max(0,       Math.min(65535, Math.round(value))), le); break
+    case 'int16':   view.setInt16(offset,  Math.max(-32768,  Math.min(32767, Math.round(value))), le); break
+    case 'uint32':  view.setUint32(offset, Math.max(0,                       Math.round(value)),  le); break
+    case 'int32':   view.setInt32(offset,                                    Math.round(value),   le); break
+    case 'float32': view.setFloat32(offset,                                  value,               le); break
+  }
 }
 
 export async function computeDiff(base: Uint8Array, modified: Uint8Array): Promise<BinaryDiff> {

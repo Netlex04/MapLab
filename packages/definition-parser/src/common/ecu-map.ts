@@ -1,4 +1,4 @@
-import type { MapCategory, DefinitionSourceType, MapConfidence } from './map-definition'
+import type { MapCategory, DefinitionSourceType, MapConfidence, DataType, Endianness } from './map-definition'
 import type { ValidationWarning } from './validation'
 
 export interface ExtractionAxis {
@@ -25,6 +25,11 @@ export interface ExtractedMap {
 
   values: number[][]
   rawValues: number[][]
+
+  scaleFactor: number
+  scaleOffset: number
+  dataType: DataType
+  endianness: Endianness
 
   source: {
     type: DefinitionSourceType

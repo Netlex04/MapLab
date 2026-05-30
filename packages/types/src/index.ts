@@ -105,9 +105,15 @@ export interface ECUMap {
   xAxisLabel: string | null
   yAxisLabel: string | null
   valueUnit: string | null
+  /** Scaled values as displayed/edited in the UI (raw * scaleFactor + scaleOffset). */
   values: number[][]
   scaledValues: number[][] | null
   safetyFlags: SafetyFlag[] | null
+  /** Scale metadata needed to reverse the transform when writing back to binary. */
+  scaleFactor: number
+  scaleOffset: number
+  dataType: string
+  endianness: 'big' | 'little'
 }
 
 export interface SafetyFlag {

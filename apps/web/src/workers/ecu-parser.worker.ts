@@ -106,6 +106,10 @@ async function tryEnhanceWithService(
         values: m.values,
         scaledValues: null,
         safetyFlags: null,
+        scaleFactor: m.scale_factor,
+        scaleOffset: m.scale_offset,
+        dataType: 'uint16',
+        endianness: 'big',
       })),
     }
   } catch {
@@ -195,6 +199,10 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
               values: m.values,
               scaledValues: null,
               safetyFlags: mapFlags.length > 0 ? mapFlags : null,
+              scaleFactor: m.scaleFactor,
+              scaleOffset: m.scaleOffset,
+              dataType: m.dataType,
+              endianness: m.endianness,
             }
           })
 
