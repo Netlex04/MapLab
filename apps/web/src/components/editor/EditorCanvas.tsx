@@ -1,34 +1,11 @@
 'use client'
 
-import { Binary, GitCompare } from 'lucide-react'
+import { Binary } from 'lucide-react'
 import { useEditorStore } from '@/lib/editor/store'
 import { Map2DView } from './views/Map2DView'
 import { Map3DView } from './views/Map3DView'
 import { HexView } from './views/HexView'
-
-// ─── Placeholder-Karten für nicht-implementierte Views ────────────────────────
-
-function ViewPlaceholder({
-  icon: Icon,
-  label,
-  description,
-}: {
-  icon: React.ComponentType<{ className?: string }>
-  label: string
-  description: string
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-8">
-      <div className="size-12 rounded-lg bg-secondary flex items-center justify-center">
-        <Icon className="size-5 text-muted-foreground/60" />
-      </div>
-      <div>
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="text-xs text-muted-foreground mt-1">{description}</p>
-      </div>
-    </div>
-  )
-}
+import { DiffView } from './views/DiffView'
 
 // ─── No-file State ────────────────────────────────────────────────────────────
 
@@ -94,12 +71,6 @@ export function EditorCanvas() {
     case 'map-3d':
       return <Map3DView />
     case 'diff':
-      return (
-        <ViewPlaceholder
-          icon={GitCompare}
-          label="Diff View"
-          description="Kommt nach dem MVP."
-        />
-      )
+      return <DiffView />
   }
 }
