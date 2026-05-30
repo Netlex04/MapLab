@@ -28,6 +28,7 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @maplab/db db:generate
       - run: pnpm typecheck
 
   lint:
@@ -46,6 +47,7 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @maplab/db db:generate
       - run: pnpm lint
 
   build:

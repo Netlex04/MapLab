@@ -18,7 +18,7 @@ from typing import Optional
 import hashlib
 import os
 
-from fingerprint import fingerprint_binary, FingerprintResult
+from fingerprint import fingerprint_binary
 from parse import parse_binary
 
 app = FastAPI(
