@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { LayoutDashboard, Compass, LogOut } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { cn } from '@/lib/utils'
 import { logout } from '@/app/actions/auth'
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: '◫' },
-  { href: '/explore',   label: 'Explore',   icon: '⬡' },
+  { href: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
+  { href: '/explore',   label: 'Explore',   Icon: Compass },
 ]
 
 export function AppSidebar({ user }: { user: User }) {
@@ -28,7 +29,7 @@ export function AppSidebar({ user }: { user: User }) {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-0.5 p-3">
-        {navItems.map(({ href, label, icon }) => {
+        {navItems.map(({ href, label, Icon }) => {
           const active =
             pathname === href || (href !== '/dashboard' && pathname.startsWith(href + '/'))
           return (
@@ -42,7 +43,7 @@ export function AppSidebar({ user }: { user: User }) {
                   : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
               )}
             >
-              <span className="text-base leading-none">{icon}</span>
+              <Icon className="size-4 shrink-0" />
               {label}
             </Link>
           )
@@ -62,8 +63,9 @@ export function AppSidebar({ user }: { user: User }) {
         <form action={logout}>
           <button
             type="submit"
-            className="w-full rounded px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            className="flex w-full items-center gap-2.5 rounded px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
+            <LogOut className="size-3.5 shrink-0" />
             Sign out
           </button>
         </form>

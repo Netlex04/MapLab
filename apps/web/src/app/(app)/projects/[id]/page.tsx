@@ -7,8 +7,11 @@ import {
   type CommitRow,
   type ProjectDetail,
 } from '@/app/actions/projects'
+import { getComments } from '@/app/actions/community'
 import { createClient } from '@/lib/supabase/server'
 import { UploadDialog } from './upload-dialog'
+import { LikeButton, ForkButton } from './project-actions'
+import { CommentsSection } from './comments-section'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -67,13 +70,22 @@ function ProjectHeader({
   isOwner,
   selectedBranch,
   hasCommits,
+  viewerHasLiked,
+  currentUserId,
 }: {
   project: ProjectDetail
   isOwner: boolean
   selectedBranch: BranchWithCount | undefined
   hasCommits: boolean
+  viewerHasLiked: boolean
+  currentUserId: string | null
 }) {
   const ownerSlug = project.owner.username ?? project.ownerId.slice(0, 8)
+  const canFork =
+    !isOwner &&
+    project.visibility !== 'PRIVATE' &&
+    currentUserId !== null &&
+    hasCommits
 
   return (
     <div className="mb-8">
@@ -132,6 +144,16 @@ function ProjectHeader({
 
         {/* CTA */}
         <div className="flex items-center gap-2 shrink-0">
+          {currentUserId && (
+            <LikeButton
+              projectId={project.id}
+              initialLiked={viewerHasLiked}
+              initialCount={project.likeCount}
+            />
+          )}
+          {canFork && (
+            <ForkButton projectId={project.id} forkCount={project.forkCount} />
+          )}
           {hasCommits && (
             <Link
               href={`/projects/${project.id}/editor`}
@@ -326,11 +348,30 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
     project.branches.find((b) => b.name === 'main') ??
     project.branches[0]
 
-  const commits = selectedBranch ? await getBranchCommits(selectedBranch.id) : []
+  const [commits, comments] = await Promise.all([
+    selectedBranch ? getBranchCommits(selectedBranch.id) : Promise.resolve([]),
+    getComments(id),
+  ])
+
+  // Check if current user has liked this project
+  const { prisma } = await import('@maplab/db')
+  const viewerHasLiked = user
+    ? !!(await prisma.like.findUnique({
+        where: { userId_projectId: { userId: user.id, projectId: id } },
+        select: { userId: true },
+      }))
+    : false
 
   return (
-    <div className="mx-auto max-w-5xl px-8 py-10">
-      <ProjectHeader project={project} isOwner={isOwner} selectedBranch={selectedBranch} hasCommits={commits.length > 0} />
+    <div className="mx-auto max-w-6xl px-8 py-10">
+      <ProjectHeader
+        project={project}
+        isOwner={isOwner}
+        selectedBranch={selectedBranch}
+        hasCommits={commits.length > 0}
+        viewerHasLiked={viewerHasLiked}
+        currentUserId={user?.id ?? null}
+      />
 
       {project.branches.length > 1 && (
         <BranchTabs
@@ -349,6 +390,14 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
       ) : (
         <CommitList commits={commits} />
       )}
+
+      <div className="mt-8">
+        <CommentsSection
+          projectId={id}
+          initialComments={comments}
+          currentUserId={user?.id ?? null}
+        />
+      </div>
     </div>
   )
 }

@@ -1,8 +1,18 @@
-export default function ExplorePage() {
+import { getPublicProjects, getExploreFilterOptions } from '@/app/actions/community'
+import { ExploreClient } from './ExploreClient'
+
+export default async function ExplorePage() {
+  const [projects, filterOptions] = await Promise.all([
+    getPublicProjects({ sort: 'newest' }),
+    getExploreFilterOptions(),
+  ])
+
   return (
-    <main className="p-8">
-      <h1 className="text-2xl font-bold">Explore</h1>
-      <p className="mt-2 text-muted-foreground">Öffentliche Projekte der Community.</p>
-    </main>
+    <ExploreClient
+      initialProjects={projects}
+      ecuTypes={filterOptions.ecuTypes}
+      stages={filterOptions.stages}
+      fuelTypes={filterOptions.fuelTypes}
+    />
   )
 }
