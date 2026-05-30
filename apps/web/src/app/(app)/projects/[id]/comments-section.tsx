@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { MessageSquare, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
+import Image from 'next/image'
+import { MessageSquare, ChevronDown, ChevronUp } from 'lucide-react'
 import {
   addComment,
-  deleteComment,
   getReplies,
   type CommentRow,
 } from '@/app/actions/community'
@@ -29,7 +29,15 @@ function formatRelative(date: Date): string {
 
 function Avatar({ username, avatarUrl }: { username: string | null; avatarUrl: string | null }) {
   if (avatarUrl) {
-    return <img src={avatarUrl} alt={username ?? ''} className="size-7 rounded-full object-cover shrink-0" />
+    return (
+      <Image
+        src={avatarUrl}
+        alt={username ?? ''}
+        width={28}
+        height={28}
+        className="size-7 rounded-full object-cover shrink-0"
+      />
+    )
   }
   return (
     <div className="size-7 rounded-full bg-primary/10 flex items-center justify-center font-mono text-[10px] font-bold text-primary shrink-0">
@@ -57,7 +65,7 @@ function ComposeBox({
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!content.trim()) return
     setError(null)
@@ -123,7 +131,7 @@ function CommentItem({
   comment,
   projectId,
   currentUserId,
-  onDeleted,
+  onDeleted: _onDeleted,
 }: {
   comment: CommentRow
   projectId: string
@@ -134,7 +142,6 @@ function CommentItem({
   const [repliesOpen, setRepliesOpen] = useState(false)
   const [replies, setReplies] = useState<CommentRow[]>([])
   const [loadingReplies, setLoadingReplies] = useState(false)
-  const [isPending, startTransition] = useTransition()
 
   async function loadReplies() {
     if (loadingReplies) return
@@ -153,13 +160,6 @@ function CommentItem({
     }
   }
 
-  function handleDelete() {
-    startTransition(async () => {
-      await deleteComment(comment.id, projectId)
-      onDeleted(comment.id)
-    })
-  }
-
   function handleReplyPosted(reply: CommentRow) {
     setReplies((r) => [...r, reply])
     setRepliesOpen(true)
@@ -167,9 +167,6 @@ function CommentItem({
   }
 
   const authorName = comment.author.username ?? 'anonymous'
-  const isOwn = currentUserId != null && comment.author.username != null
-    ? false // we only have username, not userId — delete is handled server-side
-    : false
 
   return (
     <div className="flex gap-3">
@@ -185,14 +182,14 @@ function CommentItem({
         </div>
 
         {/* Content */}
-        <p className="text-sm text-foreground/90 whitespace-pre-wrap break-words">{comment.content}</p>
+        <p className="text-sm text-foreground/90 whitespace-pre-wrap wrap-break-word">{comment.content}</p>
 
         {/* Actions */}
         <div className="mt-2 flex items-center gap-3">
           {currentUserId && (
             <button
               onClick={() => setShowReplyBox((v) => !v)}
-              className="font-mono text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+              className="font-mono text-label text-muted-foreground hover:text-foreground transition-colors"
             >
               Antworten
             </button>
@@ -200,7 +197,7 @@ function CommentItem({
           {comment.replyCount > 0 && (
             <button
               onClick={handleToggleReplies}
-              className="flex items-center gap-1 font-mono text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-1 font-mono text-label text-muted-foreground hover:text-foreground transition-colors"
             >
               {repliesOpen ? (
                 <ChevronUp className="size-3" />
@@ -209,7 +206,7 @@ function CommentItem({
               )}
               {loadingReplies
                 ? 'Lade…'
-                : `${comment.replyCount + replies.filter((r) => !replies.find((o) => o === r)).length} Antwort${comment.replyCount !== 1 ? 'en' : ''}`}
+                : `${comment.replyCount} Antwort${comment.replyCount !== 1 ? 'en' : ''}`}
             </button>
           )}
         </div>

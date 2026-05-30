@@ -112,7 +112,7 @@ function SearchResults({ maps, activeMapId, pendingChanges, setActiveMap, query 
   if (filtered.length === 0) {
     return (
       <div className="px-3 py-4 text-xs text-muted-foreground/60 text-center">
-        Keine Maps für „{query}"
+        Keine Maps für &quot;{query}&quot;
       </div>
     )
   }

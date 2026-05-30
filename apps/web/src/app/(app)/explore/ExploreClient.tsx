@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { GitFork, Heart, MessageSquare, Search, GitCommitHorizontal } from 'lucide-react'
 import {
   getPublicProjects,
@@ -28,9 +29,11 @@ function Avatar({ username, avatarUrl }: { username: string | null; avatarUrl: s
   const initials = (username ?? '?')[0]?.toUpperCase() ?? '?'
   if (avatarUrl) {
     return (
-      <img
+      <Image
         src={avatarUrl}
         alt={username ?? ''}
+        width={24}
+        height={24}
         className="size-6 rounded-full object-cover"
       />
     )

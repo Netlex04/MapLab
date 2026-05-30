@@ -169,7 +169,7 @@ export default function LandingPage() {
 
             <h1 className="font-display text-[52px] font-bold uppercase leading-[1.04] tracking-wider lg:text-[60px]">
               The ECU library<br />
-              <span className="text-primary">your Discord can't replace.</span>
+              <span className="text-primary">your Discord can&apos;t replace.</span>
             </h1>
 
             <p className="mt-6 max-w-md text-lg leading-relaxed text-muted-foreground">
