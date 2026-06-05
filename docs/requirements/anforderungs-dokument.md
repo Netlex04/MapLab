@@ -293,6 +293,54 @@ Mehrere Nutzer können gleichzeitig an derselben ECU-Datei arbeiten — ähnlich
 
 ---
 
+# 4.9 Projekt-Berechtigungen & Kollaboratoren
+
+## Ziel
+
+Jedes Projekt hat einen Owner, der andere Nutzer explizit als Kollaboratoren einladen kann. Nur Owner und eingeladene Kollaboratoren können ein Projekt bearbeiten — unabhängig davon, ob es öffentlich oder privat ist.
+
+## Sichtbarkeit vs. Bearbeitungsrecht
+
+| Projekt-Typ | Sichtbar für | Bearbeitbar für |
+|---|---|---|
+| **Public** | Alle (auch nicht eingeloggte Nutzer) | Owner + Kollaboratoren |
+| **Private** | Owner + Kollaboratoren | Owner + Kollaboratoren |
+
+## Kollaboratoren-Rollen
+
+| Rolle | Beschreibung |
+|---|---|
+| **Owner** | Ersteller des Projekts; kann Kollaboratoren einladen, entfernen und Rollen ändern; kann das Projekt löschen |
+| **Editor** | Kann Dateien bearbeiten, Versionen committen, Kommentare schreiben |
+| **Viewer** | Kann nur lesen und kommentieren (nur relevant bei Private-Projekten) |
+
+## Einladungsprozess
+
+1. Owner öffnet Projekteinstellungen → „Kollaboratoren"
+2. Suche nach Nutzername oder E-Mail
+3. Rolle auswählen (Editor oder Viewer)
+4. Einladung wird per In-App-Benachrichtigung (und optional E-Mail) versandt
+5. Eingeladener Nutzer nimmt an oder lehnt ab
+6. Nach Annahme erscheint der Nutzer in der Kollaboratoren-Liste
+
+## Verwaltung
+
+- Owner kann Rollen jederzeit ändern
+- Owner kann Kollaboratoren entfernen
+- Kollaboratoren können das Projekt selbst verlassen
+- Bei Übertragung des Ownership-Status muss ein anderer Kollaborator ausgewählt werden
+
+## Beziehung zum globalen Rollen-System
+
+Die Plattform-Rollen (User / Verified Tuner / Moderator / Admin) sind unabhängig von den Projekt-Rollen. Ein Admin hat auf Plattformebene erweiterte Rechte (z.B. Moderation), ist aber nicht automatisch Editor in fremden Projekten.
+
+## Monetarisierung
+
+- Kollaboratoren bei **Public-Projekten**: kostenlos (unbegrenzt)
+- Kollaboratoren bei **Private-Projekten**: Pro-Feature (Limit bei Free-Plan, z.B. max. 1 Kollaborator)
+
+---
+
 # 4.8 Sicherheits- & Plausibilitätsprüfung
 
 ## Prüfungen

@@ -73,9 +73,10 @@ interface EditorShellProps {
   projectId: string
   projectName: string
   branchId: string
+  canCommit: boolean
 }
 
-export function EditorShell({ projectId, projectName, branchId }: EditorShellProps) {
+export function EditorShell({ projectId, projectName, branchId, canCommit }: EditorShellProps) {
   const [commitDialogOpen, setCommitDialogOpen] = useState(false)
   const [copilotOpen, setCopilotOpen] = useState(false)
   const { parseFile, reExtract } = useECUParser()
@@ -124,6 +125,7 @@ export function EditorShell({ projectId, projectName, branchId }: EditorShellPro
         projectId={projectId}
         projectName={projectName}
         onCommit={handleCommit}
+        canCommit={canCommit}
         copilotOpen={copilotOpen}
         onToggleCopilot={() => setCopilotOpen((o) => !o)}
       />

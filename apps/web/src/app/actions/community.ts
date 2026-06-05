@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { prisma } from '@maplab/db'
 import { createClient } from '@/lib/supabase/server'
 import type { Visibility } from '@maplab/types'
+import { canViewProject } from './projects'
 
 // ─── Auth Helper ──────────────────────────────────────────────────────────────
 
@@ -344,13 +345,12 @@ export async function addComment(
   const trimmed = content.trim()
   if (!trimmed || trimmed.length > 2000) return { error: 'Invalid comment' }
 
-  // Verify project exists and is accessible
   const project = await prisma.project.findUnique({
     where: { id: projectId },
-    select: { visibility: true, ownerId: true },
+    select: { id: true },
   })
   if (!project) return { error: 'Project not found' }
-  if (project.visibility === 'PRIVATE' && project.ownerId !== user.id) {
+  if (!(await canViewProject(projectId, user.id))) {
     return { error: 'Access denied' }
   }
 

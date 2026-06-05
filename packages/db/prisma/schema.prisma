@@ -44,6 +44,17 @@ enum MapType {
   UNKNOWN
 }
 
+enum CollaboratorRole {
+  EDITOR
+  VIEWER
+}
+
+enum CollaboratorStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
 // ─── User & Auth ──────────────────────────────────────────────────────────────
 
 model User {
@@ -58,13 +69,15 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  projects  Project[]
-  vehicles  Vehicle[]
-  likes     Like[]
-  comments  Comment[]
-  following Follow[]  @relation("following")
-  followers Follow[]  @relation("followers")
-  commits   Commit[]
+  projects           Project[]
+  vehicles           Vehicle[]
+  likes              Like[]
+  comments           Comment[]
+  following          Follow[]               @relation("following")
+  followers          Follow[]               @relation("followers")
+  commits            Commit[]
+  collaborations     ProjectCollaborator[]  @relation("collaborations")
+  invitationsSent    ProjectCollaborator[]  @relation("invitations_sent")
 
   @@map("users")
 }
@@ -104,11 +117,12 @@ model Project {
   forkOfId    String?
   forkOf      Project?   @relation("forks", fields: [forkOfId], references: [id], onDelete: SetNull)
   forks       Project[]  @relation("forks")
-  branches    Branch[]
-  likes       Like[]
-  comments    Comment[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  branches        Branch[]
+  likes           Like[]
+  comments        Comment[]
+  collaborators   ProjectCollaborator[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 
   @@index([ownerId])
   @@index([visibility])
@@ -228,4 +242,25 @@ model Follow {
 
   @@id([followerId, followingId])
   @@map("follows")
+}
+
+// ─── Project Collaborators ────────────────────────────────────────────────────
+
+model ProjectCollaborator {
+  id          String             @id @default(uuid())
+  projectId   String
+  project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User               @relation("collaborations", fields: [userId], references: [id], onDelete: Cascade)
+  role        CollaboratorRole   @default(EDITOR)
+  status      CollaboratorStatus @default(PENDING)
+  invitedById String
+  invitedBy   User               @relation("invitations_sent", fields: [invitedById], references: [id])
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@index([projectId])
+  @@map("project_collaborators")
 }

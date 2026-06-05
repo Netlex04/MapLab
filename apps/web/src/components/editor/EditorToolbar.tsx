@@ -30,11 +30,12 @@ interface EditorToolbarProps {
   projectId: string
   projectName: string
   onCommit: () => void
+  canCommit: boolean
   copilotOpen: boolean
   onToggleCopilot: () => void
 }
 
-export function EditorToolbar({ projectId, projectName, onCommit, copilotOpen, onToggleCopilot }: EditorToolbarProps) {
+export function EditorToolbar({ projectId, projectName, onCommit, canCommit, copilotOpen, onToggleCopilot }: EditorToolbarProps) {
   const activeView = useEditorStore((s) => s.activeView)
   const setActiveView = useEditorStore((s) => s.setActiveView)
   const isDirty = useEditorStore((s) => s.isDirty)
@@ -184,15 +185,17 @@ export function EditorToolbar({ projectId, projectName, onCommit, copilotOpen, o
           <TooltipContent>BIN herunterladen</TooltipContent>
         </Tooltip>
 
-        <Button
-          size="sm"
-          onClick={onCommit}
-          disabled={!isDirty || !isReady}
-          className="h-8 text-xs gap-1.5"
-        >
-          <GitCommitHorizontal className="size-3.5" />
-          Commit
-        </Button>
+        {canCommit && (
+          <Button
+            size="sm"
+            onClick={onCommit}
+            disabled={!isDirty || !isReady}
+            className="h-8 text-xs gap-1.5"
+          >
+            <GitCommitHorizontal className="size-3.5" />
+            Commit
+          </Button>
+        )}
       </div>
     </header>
   )

@@ -3,15 +3,19 @@ import Link from 'next/link'
 import {
   getProject,
   getBranchCommits,
+  canViewProject,
+  canEditProject,
   type BranchWithCount,
   type CommitRow,
   type ProjectDetail,
 } from '@/app/actions/projects'
 import { getComments } from '@/app/actions/community'
+import { getCollaborators } from '@/app/actions/collaborators'
 import { createClient } from '@/lib/supabase/server'
 import { UploadDialog } from './upload-dialog'
 import { LikeButton, ForkButton } from './project-actions'
 import { CommentsSection } from './comments-section'
+import { CollaboratorsPanel } from './collaborators-panel'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -68,6 +72,7 @@ function StageBadge({ stage }: { stage: string }) {
 function ProjectHeader({
   project,
   isOwner,
+  isEditor,
   selectedBranch,
   hasCommits,
   viewerHasLiked,
@@ -75,6 +80,7 @@ function ProjectHeader({
 }: {
   project: ProjectDetail
   isOwner: boolean
+  isEditor: boolean
   selectedBranch: BranchWithCount | undefined
   hasCommits: boolean
   viewerHasLiked: boolean
@@ -162,7 +168,7 @@ function ProjectHeader({
               Open Editor
             </Link>
           )}
-          {isOwner && selectedBranch && (
+          {isEditor && selectedBranch && (
             <UploadDialog projectId={project.id} branchId={selectedBranch.id} />
           )}
         </div>
@@ -289,11 +295,11 @@ function CommitList({ commits }: { commits: CommitRow[] }) {
 function EmptyState({
   projectId,
   branchId,
-  isOwner,
+  isEditor,
 }: {
   projectId: string
   branchId: string
-  isOwner: boolean
+  isEditor: boolean
 }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-24 text-center">
@@ -302,7 +308,7 @@ function EmptyState({
       <p className="mb-6 max-w-xs text-sm text-muted-foreground">
         Upload your first ECU file to start versioning your tune.
       </p>
-      {isOwner && (
+      {isEditor && (
         <UploadDialog projectId={projectId} branchId={branchId}>
           <button className="rounded bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90">
             Upload first file
@@ -335,12 +341,17 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Access control: private projects are owner-only
-  if (project.visibility === 'PRIVATE' && project.ownerId !== user?.id) {
-    notFound()
+  const userId = user?.id ?? null
+
+  // Access control: private/unlisted projects need owner or accepted collaborator
+  if (project.visibility === 'PRIVATE') {
+    if (!userId) notFound()
+    const canView = await canViewProject(id, userId)
+    if (!canView) notFound()
   }
 
-  const isOwner = user?.id === project.ownerId
+  const isOwner = userId === project.ownerId
+  const isEditor = isOwner || (userId ? await canEditProject(id, userId) : false)
 
   // Resolve selected branch: URL param → main → first
   const selectedBranch =
@@ -348,29 +359,33 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
     project.branches.find((b) => b.name === 'main') ??
     project.branches[0]
 
-  const [commits, comments] = await Promise.all([
+  const { prisma } = await import('@maplab/db')
+  const [commits, comments, collaborators, viewerHasLiked] = await Promise.all([
     selectedBranch ? getBranchCommits(selectedBranch.id) : Promise.resolve([]),
     getComments(id),
+    userId ? getCollaborators(id) : Promise.resolve([]),
+    userId
+      ? prisma.like
+          .findUnique({
+            where: { userId_projectId: { userId, projectId: id } },
+            select: { userId: true },
+          })
+          .then(Boolean)
+      : Promise.resolve(false),
   ])
 
-  // Check if current user has liked this project
-  const { prisma } = await import('@maplab/db')
-  const viewerHasLiked = user
-    ? !!(await prisma.like.findUnique({
-        where: { userId_projectId: { userId: user.id, projectId: id } },
-        select: { userId: true },
-      }))
-    : false
+  const showCollaboratorsPanel = isOwner || (userId && collaborators.length > 0)
 
   return (
     <div className="mx-auto max-w-6xl px-8 py-10">
       <ProjectHeader
         project={project}
         isOwner={isOwner}
+        isEditor={isEditor}
         selectedBranch={selectedBranch}
         hasCommits={commits.length > 0}
         viewerHasLiked={viewerHasLiked}
-        currentUserId={user?.id ?? null}
+        currentUserId={userId}
       />
 
       {project.branches.length > 1 && (
@@ -385,18 +400,26 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
         <EmptyState
           projectId={project.id}
           branchId={selectedBranch?.id ?? ''}
-          isOwner={isOwner}
+          isEditor={isEditor}
         />
       ) : (
         <CommitList commits={commits} />
       )}
 
-      <div className="mt-8">
+      <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_320px]">
         <CommentsSection
           projectId={id}
           initialComments={comments}
-          currentUserId={user?.id ?? null}
+          currentUserId={userId}
         />
+        {showCollaboratorsPanel && (
+          <CollaboratorsPanel
+            projectId={id}
+            initialCollaborators={collaborators}
+            isOwner={isOwner}
+            currentUserId={userId ?? ''}
+          />
+        )}
       </div>
     </div>
   )

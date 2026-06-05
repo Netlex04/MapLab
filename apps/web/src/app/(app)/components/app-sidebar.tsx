@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Compass, LogOut } from 'lucide-react'
+import { LayoutDashboard, Compass, LogOut, Bell } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { cn } from '@/lib/utils'
 import { logout } from '@/app/actions/auth'
@@ -12,7 +12,7 @@ const navItems = [
   { href: '/explore',   label: 'Explore',   Icon: Compass },
 ]
 
-export function AppSidebar({ user }: { user: User }) {
+export function AppSidebar({ user, pendingInviteCount = 0 }: { user: User; pendingInviteCount?: number }) {
   const pathname = usePathname()
 
   return (
@@ -48,6 +48,24 @@ export function AppSidebar({ user }: { user: User }) {
             </Link>
           )
         })}
+
+        <Link
+          href="/invites"
+          className={cn(
+            'flex items-center gap-2.5 rounded px-3 py-2 text-sm transition-colors',
+            pathname === '/invites'
+              ? 'bg-primary/10 font-medium text-primary'
+              : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+          )}
+        >
+          <Bell className="size-4 shrink-0" />
+          <span className="flex-1">Invitations</span>
+          {pendingInviteCount > 0 && (
+            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-yellow-400 px-1 font-mono text-[10px] font-bold text-background">
+              {pendingInviteCount}
+            </span>
+          )}
+        </Link>
       </nav>
 
       {/* User + Logout */}

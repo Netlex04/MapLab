@@ -46,6 +46,11 @@ function ProjectCard({ project }: { project: ProjectRow }) {
       <div className="mb-3 flex items-center gap-2">
         {stageBadge(project.stage)}
         {visibilityBadge(project.visibility)}
+        {project.isShared && (
+          <span className="rounded-sm bg-cyan-400/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-cyan-400">
+            Shared
+          </span>
+        )}
       </div>
 
       <h3 className="mb-1 font-semibold text-foreground group-hover:text-primary transition-colors">
@@ -94,8 +99,10 @@ function EmptyState() {
 export default async function DashboardPage() {
   const projects = await getMyProjects()
 
-  const publicCount = projects.filter((p) => p.visibility === 'PUBLIC').length
-  const privateCount = projects.filter((p) => p.visibility === 'PRIVATE').length
+  const ownedProjects = projects.filter((p) => !p.isShared)
+  const sharedProjects = projects.filter((p) => p.isShared)
+  const publicCount = ownedProjects.filter((p) => p.visibility === 'PUBLIC').length
+  const privateCount = ownedProjects.filter((p) => p.visibility === 'PRIVATE').length
 
   return (
     <div className="mx-auto max-w-5xl px-8 py-10">
@@ -118,11 +125,12 @@ export default async function DashboardPage() {
 
       {/* Stats strip */}
       {projects.length > 0 && (
-        <div className="mb-8 grid grid-cols-3 gap-4">
+        <div className="mb-8 grid grid-cols-4 gap-4">
           {[
-            { label: 'Projects', value: projects.length },
+            { label: 'Projects', value: ownedProjects.length },
             { label: 'Public', value: publicCount },
             { label: 'Private', value: privateCount },
+            { label: 'Shared', value: sharedProjects.length },
           ].map(({ label, value }) => (
             <div
               key={label}
@@ -137,26 +145,45 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Projects */}
+      {/* My projects */}
       <div className="mb-4 flex items-center justify-between">
         <p className="font-mono text-label uppercase tracking-widest text-muted-foreground">
           Your projects
         </p>
-        {projects.length > 0 && (
+        {ownedProjects.length > 0 && (
           <span className="font-mono text-label text-muted-foreground">
-            {projects.length} total
+            {ownedProjects.length} total
           </span>
         )}
       </div>
 
-      {projects.length === 0 ? (
+      {ownedProjects.length === 0 ? (
         <EmptyState />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map((p) => (
+          {ownedProjects.map((p) => (
             <ProjectCard key={p.id} project={p} />
           ))}
         </div>
+      )}
+
+      {/* Shared with me */}
+      {sharedProjects.length > 0 && (
+        <>
+          <div className="mb-4 mt-10 flex items-center justify-between">
+            <p className="font-mono text-label uppercase tracking-widest text-muted-foreground">
+              Shared with me
+            </p>
+            <span className="font-mono text-label text-muted-foreground">
+              {sharedProjects.length} total
+            </span>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {sharedProjects.map((p) => (
+              <ProjectCard key={p.id} project={p} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   )

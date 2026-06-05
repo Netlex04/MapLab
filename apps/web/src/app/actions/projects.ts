@@ -9,6 +9,39 @@ import type { FileFormat, Visibility } from '@maplab/types'
 
 export type ProjectState = { error: string } | null
 
+// ─── Collaborator Access Helpers ──────────────────────────────────────────────
+
+export async function canEditProject(projectId: string, userId: string): Promise<boolean> {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { ownerId: true },
+  })
+  if (!project) return false
+  if (project.ownerId === userId) return true
+
+  const collaborator = await prisma.projectCollaborator.findUnique({
+    where: { projectId_userId: { projectId, userId } },
+    select: { status: true, role: true },
+  })
+  return collaborator?.status === 'ACCEPTED' && collaborator.role === 'EDITOR'
+}
+
+export async function canViewProject(projectId: string, userId: string): Promise<boolean> {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { ownerId: true, visibility: true },
+  })
+  if (!project) return false
+  if (project.visibility === 'PUBLIC' || project.visibility === 'UNLISTED') return true
+  if (project.ownerId === userId) return true
+
+  const collaborator = await prisma.projectCollaborator.findUnique({
+    where: { projectId_userId: { projectId, userId } },
+    select: { status: true },
+  })
+  return collaborator?.status === 'ACCEPTED'
+}
+
 async function getAuthUser() {
   const supabase = await createClient()
   const {
@@ -57,26 +90,52 @@ export interface ProjectRow {
   stage: string | null
   createdAt: Date
   updatedAt: Date
+  isShared: boolean
 }
+
+const PROJECT_SELECT = {
+  id: true,
+  name: true,
+  description: true,
+  visibility: true,
+  ecuType: true,
+  stage: true,
+  createdAt: true,
+  updatedAt: true,
+} as const
 
 export async function getMyProjects(): Promise<ProjectRow[]> {
   const user = await getAuthUser()
   if (!user) return []
 
-  return prisma.project.findMany({
-    where: { ownerId: user.id },
-    select: {
-      id: true,
-      name: true,
-      description: true,
-      visibility: true,
-      ecuType: true,
-      stage: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-    orderBy: { updatedAt: 'desc' },
-  }) as Promise<ProjectRow[]>
+  const [ownedRaw, sharedCollaborators] = await Promise.all([
+    prisma.project.findMany({
+      where: { ownerId: user.id },
+      select: PROJECT_SELECT,
+      orderBy: { updatedAt: 'desc' },
+    }),
+    prisma.projectCollaborator.findMany({
+      where: { userId: user.id, status: 'ACCEPTED' },
+      select: {
+        project: { select: PROJECT_SELECT },
+      },
+      orderBy: { project: { updatedAt: 'desc' } },
+    }),
+  ])
+
+  const owned: ProjectRow[] = ownedRaw.map((p) => ({
+    ...p,
+    visibility: p.visibility as Visibility,
+    isShared: false,
+  }))
+
+  const shared: ProjectRow[] = sharedCollaborators.map(({ project: p }) => ({
+    ...p,
+    visibility: p.visibility as Visibility,
+    isShared: true,
+  }))
+
+  return [...owned, ...shared].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
 }
 
 // ─── Project Detail ────────────────────────────────────────────────────────────
@@ -259,12 +318,12 @@ export async function uploadCommit(
   const format = FORMAT_MAP[ext]
   if (!format) return { error: `Unsupported format: .${ext}` }
 
-  // Verify project ownership
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: { ownerId: true, ecuType: true },
   })
-  if (!project || project.ownerId !== user.id) {
+  if (!project) return { error: 'Project not found or access denied' }
+  if (!(await canEditProject(projectId, user.id))) {
     return { error: 'Project not found or access denied' }
   }
 
