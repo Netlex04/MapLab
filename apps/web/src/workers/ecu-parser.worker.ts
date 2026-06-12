@@ -5,7 +5,8 @@
  * von ECU-Binärdateien (bis zu 1 MB) und beim Zurückschreiben von Map-Werten.
  */
 
-import { parseECU, getHexSlice, writeMapValues } from '@maplab/ecu-parser-wasm'
+import { parseECU, getHexSlice, writeMapValues, extractMapsFromDefinitionsWasm } from '@maplab/ecu-parser-wasm'
+import type { WasmExtractionResult } from '@maplab/ecu-parser-wasm'
 import {
   fingerprintROM,
   loadInternalDefinition,
@@ -13,7 +14,12 @@ import {
   matchDefinitions,
   runSafetyChecks,
 } from '@maplab/definition-parser'
-import type { MapDefinition } from '@maplab/definition-parser'
+import type {
+  MapDefinition,
+  ExtractionResult,
+  ExtractedMap,
+  ValidationWarning,
+} from '@maplab/definition-parser'
 import type { FileFormat, ParsedECU, ECUMap, MapType, SafetyFlag, DefinitionMatchStatus } from '@maplab/types'
 
 // ─── Message Protocol ─────────────────────────────────────────────────────────
@@ -133,6 +139,69 @@ function toMapType(category: string): MapType {
   return CATEGORY_TO_TYPE[category] ?? 'UNKNOWN'
 }
 
+// ─── WASM → TS ExtractionResult adapter ──────────────────────────────────────
+
+/**
+ * Convert WASM extraction output into the ExtractionResult shape expected by
+ * runSafetyChecks() and the ECUMap builder.
+ *
+ * The WASM output omits scaleFactor/scaleOffset/dataType/endianness because
+ * Rust doesn't re-serialize those from the definition. We look them up via
+ * `defById` (keyed on definition id) and fall back to safe defaults so the
+ * write path never sees undefined values.
+ */
+function wasmResultToExtractionResult(
+  wasmResult: WasmExtractionResult,
+  defById: Map<string, MapDefinition>,
+): ExtractionResult {
+  const toWarning = (w: WasmExtractionResult['warnings'][number]): ValidationWarning => {
+    const base: ValidationWarning = {
+      code: w.code,
+      severity: w.severity as ValidationWarning['severity'],
+      message: w.message,
+    }
+    if (w.mapId != null) base.mapId = w.mapId
+    if (w.offset != null) base.offset = w.offset
+    return base
+  }
+
+  const maps: ExtractedMap[] = wasmResult.maps.map((m) => {
+    const def = defById.get(m.definitionId)
+    const map: ExtractedMap = {
+      id: m.id,
+      definitionId: m.definitionId,
+      name: m.name,
+      category: m.category as ExtractedMap['category'],
+      offset: m.offset,
+      rows: m.rows,
+      cols: m.cols,
+      xAxis: {
+        values: m.xAxis.values,
+        ...(m.xAxis.label != null ? { label: m.xAxis.label } : {}),
+        ...(m.xAxis.unit  != null ? { unit:  m.xAxis.unit  } : {}),
+      },
+      yAxis: {
+        values: m.yAxis.values,
+        ...(m.yAxis.label != null ? { label: m.yAxis.label } : {}),
+        ...(m.yAxis.unit  != null ? { unit:  m.yAxis.unit  } : {}),
+      },
+      values: m.values,
+      rawValues: m.rawValues,
+      scaleFactor: def?.value.factor ?? 1,
+      scaleOffset: def?.value.offset ?? 0,
+      dataType: (def?.dataType ?? 'uint16') as ExtractedMap['dataType'],
+      endianness: (def?.endianness ?? 'big') as ExtractedMap['endianness'],
+      source: m.source as ExtractedMap['source'],
+      confidence: m.confidence as ExtractedMap['confidence'],
+      warnings: m.warnings.map(toWarning),
+    }
+    if (m.valueUnit != null) map.valueUnit = m.valueUnit
+    return map
+  })
+
+  return { maps, warnings: wasmResult.warnings.map(toWarning) }
+}
+
 // ─── Message Handler ──────────────────────────────────────────────────────────
 
 self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
@@ -175,7 +244,20 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
           result.matchStatus = (usingInternalDefinition && fp.confidence === 1.0)
             ? 'exact'
             : (matchResult.status as DefinitionMatchStatus)
-          const extraction = extractMaps(buffer, definitions)
+
+          // Try Rust/WASM extraction first (same logic as TS, but faster).
+          // Falls back transparently to TS extractMaps() when WASM is unavailable
+          // (module not built) or when it returns an unexpected result.
+          const defById = new Map(definitions.map((d) => [d.id, d]))
+          const wasmResult = await extractMapsFromDefinitionsWasm(buffer, msg.format, definitions)
+
+          let extraction: ExtractionResult
+          if (wasmResult !== null && wasmResult.maps.length > 0) {
+            extraction = wasmResultToExtractionResult(wasmResult, defById)
+          } else {
+            extraction = extractMaps(buffer, definitions)
+          }
+
           const safety = runSafetyChecks(buffer, definitions, extraction, matchResult)
 
           result.maps = extraction.maps.map((m): ECUMap => {

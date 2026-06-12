@@ -25,18 +25,44 @@ _DEFS_ROOT = (
     / "internal"
 )
 
-# ─── Definition registry ──────────────────────────────────────────────────────
+# ─── Definition auto-discovery ────────────────────────────────────────────────
 
-# ecu_type (as returned by fingerprint.py) → ordered list of definition files.
-# First entry is the default for that ECU type.
-_DEFINITION_REGISTRY: dict[str, list[dict[str, str]]] = {
-    "Siemens MS43": [
-        {"sw_version": "MS430069", "path": "ms43/ms430069.json"},
-    ],
-    "Siemens MS42": [
-        {"sw_version": "0110C6",   "path": "ms42/0110c6.json"},
-    ],
+# Maps are discovered at import time by scanning _DEFS_ROOT/**/*.json.
+# Directory name → ECU type name (must match fingerprint.py's ecu_type strings).
+_ECU_DIR_MAP: dict[str, str] = {
+    "ms42": "Siemens MS42",
+    "ms43": "Siemens MS43",
+    "ms45": "Siemens MS45",
+    "gs20": "Siemens GS20",
 }
+
+
+def _discover_definitions() -> dict[str, list[dict[str, str]]]:
+    """
+    Scan _DEFS_ROOT for <ecu_dir>/<sw_version>.json files and build a registry.
+
+    Registry shape: ecu_type → [{"sw_version": str, "path": str}, ...]
+    Each entry's sw_version is the stem of the JSON filename (e.g. "ms430069").
+    The list is ordered alphabetically so results are deterministic.
+    """
+    registry: dict[str, list[dict[str, str]]] = {}
+    for ecu_dir, ecu_type in _ECU_DIR_MAP.items():
+        dir_path = _DEFS_ROOT / ecu_dir
+        if not dir_path.is_dir():
+            continue
+        entries = sorted(
+            [
+                {"sw_version": p.stem.upper(), "path": f"{ecu_dir}/{p.name}"}
+                for p in dir_path.glob("*.json")
+            ],
+            key=lambda e: e["sw_version"],
+        )
+        if entries:
+            registry[ecu_type] = entries
+    return registry
+
+
+_DEFINITION_REGISTRY: dict[str, list[dict[str, str]]] = _discover_definitions()
 
 _definition_cache: dict[str, list[dict]] = {}
 

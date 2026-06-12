@@ -434,11 +434,11 @@ impl ECUParser {
             None => (None, 0.0),
         };
 
-        // TODO: implement full MS4X map extraction from DAMOS definitions.
-        // Until DAMOS integration is complete, the Python microservice at
-        // /api/fingerprint provides the authoritative map list. The WASM
-        // parser's primary current value is write_map_values (byte-accurate
-        // writes back into the binary) and checksum validation.
+        // extract_maps() is intentionally metadata-only: it returns an empty
+        // map list and is only used by parseECU() to populate checksum, size,
+        // and detected ECU. Actual extraction runs through
+        // extract_maps_from_definitions(), which accepts a MapDefinition[]
+        // from the caller and is the authoritative extraction path.
         self.maps = Vec::new();
 
         let result = ParsedECU {

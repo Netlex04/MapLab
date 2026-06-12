@@ -23,11 +23,49 @@ interface WasmModule {
 
 interface WasmECUParser {
   extract_maps(): unknown
+  extract_maps_from_definitions(definitions: unknown): unknown
   get_hex_slice(offset: number, length: number): unknown
   checksum(): string
   fast_diff(other: WasmECUParser): unknown
   write_map_values(mapId: string, values: number[][]): Uint8Array
   free(): void
+}
+
+// ─── WASM Extraction output types ─────────────────────────────────────────────
+// Mirrors the Rust ExtractionResult / ExtractedMap structs (serde camelCase).
+// Intentionally a subset of @maplab/definition-parser's ExtractedMap:
+// scaleFactor, scaleOffset, dataType, endianness are not included because
+// Rust does not re-serialize them — the caller supplements them from definitions.
+
+export interface WasmMapWarning {
+  code: string
+  severity: string
+  message: string
+  mapId?: string
+  offset?: number
+}
+
+export interface WasmExtractedMap {
+  id: string
+  definitionId: string
+  name: string
+  category: string
+  offset: number
+  rows: number
+  cols: number
+  valueUnit: string | null
+  xAxis: { label?: string | null; unit?: string | null; values: number[] }
+  yAxis: { label?: string | null; unit?: string | null; values: number[] }
+  values: number[][]
+  rawValues: number[][]
+  source: { type: string; name?: string; version?: string }
+  confidence: string
+  warnings: WasmMapWarning[]
+}
+
+export interface WasmExtractionResult {
+  maps: WasmExtractedMap[]
+  warnings: WasmMapWarning[]
 }
 
 async function loadWasm(): Promise<WasmModule | null> {
@@ -78,6 +116,18 @@ export async function getHexSlice(
   offset: number,
   length: number,
 ): Promise<HexSlice> {
+  if (!wasmModule) {
+    wasmModule = await loadWasm()
+  }
+  if (wasmModule) {
+    const parser = new wasmModule.ECUParser(buffer, 'BIN')
+    try {
+      return parser.get_hex_slice(offset, length) as HexSlice
+    } finally {
+      parser.free()
+    }
+  }
+  // JS fallback (WASM not built or unavailable)
   const slice = buffer.slice(offset, offset + length)
   const ascii = Array.from(slice).map((b) =>
     b >= 0x20 && b <= 0x7e ? String.fromCharCode(b) : '.',
@@ -104,12 +154,12 @@ export async function writeMapValues(
   maps: ECUMap[],
   changes: Record<string, number[][]>,
 ): Promise<Uint8Array> {
-  // The WASM write path is intentionally bypassed: the WASM extract_maps()
-  // populates its internal registry using WASM-internal definitions, which
-  // produce different map IDs than the TypeScript definition-parser. As a
-  // result, write_map_values never finds the map and silently returns the
-  // original buffer unchanged (same checksum → same FileVersion on commit).
-  // The JS implementation below is authoritative for all write operations.
+  // The WASM write path is intentionally bypassed. The Rust write_map_values()
+  // only handles uint16 big-endian without reverse-scaling, so it would corrupt
+  // maps with other data types or non-trivial scale factors. The JS
+  // implementation below supports all DataTypes, both endiannesses, and proper
+  // reverse-scaling ((scaled − offset) / factor → raw) and is the authoritative
+  // write path. This decision is permanent until the Rust side reaches parity.
 
   // JS fallback – reverse-scale and write with correct dataType/endianness
   const output = buffer.slice()
@@ -157,6 +207,39 @@ function _writeValue(view: DataView, offset: number, dataType: string, le: boole
     case 'uint32':  view.setUint32(offset, Math.max(0,                       Math.round(value)),  le); break
     case 'int32':   view.setInt32(offset,                                    Math.round(value),   le); break
     case 'float32': view.setFloat32(offset,                                  value,               le); break
+  }
+}
+
+/**
+ * Run the Rust extraction engine over `buffer` using the provided definitions.
+ *
+ * Returns `null` when the WASM module hasn't been built yet (no /wasm/*.js
+ * served) or when the extraction produces an unexpected result. The caller
+ * (ecu-parser.worker) falls back to the TypeScript extractMaps() in that case.
+ *
+ * The returned maps are missing scaleFactor / scaleOffset / dataType /
+ * endianness — those must be supplemented from the original definitions by the
+ * caller before passing the result to runSafetyChecks() or building ECUMaps.
+ */
+export async function extractMapsFromDefinitionsWasm(
+  buffer: Uint8Array,
+  format: FileFormat,
+  definitions: unknown[],
+): Promise<WasmExtractionResult | null> {
+  if (!wasmModule) {
+    wasmModule = await loadWasm()
+  }
+  if (!wasmModule) return null
+
+  const parser = new wasmModule.ECUParser(buffer, format)
+  try {
+    const raw = parser.extract_maps_from_definitions(definitions) as WasmExtractionResult | null
+    if (!raw || !Array.isArray(raw.maps)) return null
+    return raw
+  } catch {
+    return null
+  } finally {
+    parser.free()
   }
 }
 

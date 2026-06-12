@@ -28,7 +28,7 @@ class FingerprintResult:
 # sw_version_offset: offset in the binary where the ASCII software version string starts.
 _ECU_PROFILES: dict[str, dict] = {
     "Siemens MS42": {
-        "size_range": (512_000, 512_000),
+        "size_range": (524_288, 524_288),
         "sw_version_offset": 0x7F020,
         "identifier": b"MS42",
         "engine": "BMW M52TU",
