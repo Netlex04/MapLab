@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { FileCode, X, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react'
-import { parseAndNormalizeXdf, matchDefinitions } from '@maplab/definition-parser'
+import { parseAndNormalizeXdf, parseAndNormalizeJson, matchDefinitions } from '@maplab/definition-parser'
 import type { DefinitionMatchStatus } from '@maplab/definition-parser'
 import { useEditorStore } from '@/lib/editor/store'
 
@@ -73,8 +73,11 @@ export function XdfUploadPanel() {
   const [loading, setLoading] = useState(false)
 
   async function handleFile(file: File) {
-    if (!file.name.toLowerCase().endsWith('.xdf')) {
-      setError('Only .xdf files are supported')
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+    const SUPPORTED = ['xdf', 'json', 'a2l', 'damos', 'kp']
+
+    if (!SUPPORTED.includes(ext)) {
+      setError(`Unsupported format .${ext} — supported: ${SUPPORTED.map((e) => `.${e}`).join(', ')}`)
       return
     }
 
@@ -83,9 +86,26 @@ export function XdfUploadPanel() {
 
     try {
       const text = await file.text()
-      const result = parseAndNormalizeXdf(text, file.name)
 
-      const matchResult = rawBuffer
+      let result
+      switch (ext) {
+        case 'xdf':
+          result = parseAndNormalizeXdf(text, file.name)
+          break
+        case 'json':
+          result = parseAndNormalizeJson(text, file.name)
+          break
+        case 'a2l':
+          throw new Error('A2L parser not yet implemented')
+        case 'damos':
+          throw new Error('DAMOS parser not yet implemented')
+        case 'kp':
+          throw new Error('KP parser not yet implemented')
+        default:
+          throw new Error(`Unknown format: .${ext}`)
+      }
+
+      const matchResult = rawBuffer && result
         ? matchDefinitions(rawBuffer, result.definitions)
         : null
 
@@ -97,7 +117,7 @@ export function XdfUploadPanel() {
         matchResult,
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to parse XDF')
+      setError(err instanceof Error ? err.message : 'Failed to parse file')
       setXdf(null)
     } finally {
       setLoading(false)
@@ -134,13 +154,13 @@ export function XdfUploadPanel() {
       {/* Header */}
       <div className="flex items-center gap-2 px-3 h-9 shrink-0">
         <FileCode className="size-3.5 text-muted-foreground/60" />
-        <span className="text-label text-muted-foreground">XDF</span>
+        <span className="text-label text-muted-foreground">Definitions</span>
         {xdf && (
           <button
             type="button"
             onClick={handleClear}
             className="ml-auto rounded p-0.5 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-            title="Remove XDF"
+            title="Remove definitions"
           >
             <X className="size-3" />
           </button>
@@ -179,7 +199,7 @@ export function XdfUploadPanel() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".xdf"
+                accept=".xdf,.json,.a2l,.damos,.kp"
                 className="sr-only"
                 onChange={handleInputChange}
               />
@@ -191,7 +211,7 @@ export function XdfUploadPanel() {
                 <>
                   <FileCode className="size-4 text-muted-foreground/30" />
                   <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Drop .xdf or click
+                    Drop .xdf / .json / .a2l or click
                   </span>
                 </>
               )}
