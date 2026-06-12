@@ -90,23 +90,38 @@ echo ""
 
 # ── Optional: WASM build ──────────────────────────────────────────────────────
 
-if command -v wasm-pack &>/dev/null && command -v cargo &>/dev/null; then
-  WASM_OUT="packages/ecu-parser-wasm/wasm/ecu_parser.js"
-  if [ ! -f "$WASM_OUT" ]; then
-    log "Building ECU Parser WASM (first time)..."
-    wasm-pack build packages/ecu-parser \
-      --target web \
-      --out-dir packages/ecu-parser-wasm/wasm \
-      --quiet
-    ok "WASM built → packages/ecu-parser-wasm/wasm/"
+if command -v cargo &>/dev/null; then
+  if ! command -v wasm-pack &>/dev/null; then
+    warn "cargo found but wasm-pack missing – skipping WASM build"
+    warn "Install: cargo install wasm-pack"
+    echo ""
   else
-    ok "WASM already built (run wasm-pack manually to rebuild)"
+    WASM_OUT="packages/ecu-parser-wasm/wasm/ecu_parser.js"
+    NEEDS_BUILD=false
+
+    if [ ! -f "$WASM_OUT" ]; then
+      NEEDS_BUILD=true
+    elif find packages/ecu-parser/src -name "*.rs" -newer "$WASM_OUT" 2>/dev/null | grep -q .; then
+      NEEDS_BUILD=true
+    elif [ "packages/ecu-parser/Cargo.toml" -nt "$WASM_OUT" ] || [ "packages/ecu-parser/Cargo.lock" -nt "$WASM_OUT" ]; then
+      NEEDS_BUILD=true
+    fi
+
+    if $NEEDS_BUILD; then
+      log "Building ECU Parser WASM..."
+      wasm-pack build packages/ecu-parser \
+        --target web \
+        --out-dir packages/ecu-parser-wasm/wasm \
+        --quiet
+      ok "WASM built → packages/ecu-parser-wasm/wasm/"
+    else
+      ok "WASM up-to-date"
+    fi
+    echo ""
   fi
-  echo ""
 else
-  warn "Rust/wasm-pack not found – using JS fallback for ECU parser"
+  warn "Rust not found – skipping WASM build (using pre-built or JS fallback)"
   warn "Install: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
-  warn "         cargo install wasm-pack"
   echo ""
 fi
 

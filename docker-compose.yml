@@ -4,6 +4,7 @@ networks:
 volumes:
   web_modules:   # preserves pnpm store across container restarts
   web_next:      # preserves .next build cache
+  web_wasm:      # holds WASM built in Dockerfile.dev; initialized from image on first start
 
 services:
   # ── ECU Engine (Python FastAPI) ─────────────────────────────────────────────
@@ -54,6 +55,7 @@ services:
       - .:/app
       - web_modules:/app/node_modules      # keep container's pnpm store
       - web_next:/app/apps/web/.next       # keep .next build cache
+      - web_wasm:/app/packages/ecu-parser-wasm/wasm  # keep WASM built in image (overrides bind mount)
     command: pnpm --filter @maplab/web dev
     depends_on:
       ecu-engine:
