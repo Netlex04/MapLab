@@ -43,7 +43,7 @@ Phase 1 ist Voraussetzung für Phase 4 (saubere IDs). Phase 3 ist unabhängig vo
 
 ---
 
-## Phase 1 – WASM Verdrahtung
+## Phase 1 – WASM Verdrahtung ✅ Abgeschlossen
 
 ### Ziel
 
@@ -53,7 +53,7 @@ Rust `extract_maps_from_definitions()` ist der autoritative Extraction-Pfad. Typ
 
 `lib.rs` hat `extract_maps_from_definitions(definitions_js: JsValue) → JsValue` vollständig implementiert. Die JS-Bindings (`ecu-parser-wasm/src/index.ts`) kennen nur `parser.extract_maps()` (gibt leere Maps zurück). Das muss korrigiert werden.
 
-### 1A – JS-Bindings erweitern
+### 1A – JS-Bindings erweitern ✅
 
 **Datei:** `packages/ecu-parser-wasm/src/index.ts`
 
@@ -94,7 +94,7 @@ export async function extractMapsFromDefinitionsWasm(
 
 `parseECU()` bleibt wie es ist (Metadaten-Quelle). Extraction läuft separat.
 
-### 1B – Worker umstellen
+### 1B – Worker umstellen ✅
 
 **Datei:** `apps/web/src/workers/ecu-parser.worker.ts`
 
@@ -120,7 +120,7 @@ if (definitions.length > 0) {
 
 **Warum nicht nur WASM?** WASM-Binaries können in manchen Umgebungen nicht geladen werden (CSP, ältere Browser, Tests). TS-Fallback bleibt immer aktiv.
 
-### 1C – `getHexSlice` auf WASM umstellen
+### 1C – `getHexSlice` auf WASM umstellen ✅
 
 **Datei:** `packages/ecu-parser-wasm/src/index.ts`
 
@@ -143,7 +143,7 @@ export async function getHexSlice(buffer: Uint8Array, offset: number, length: nu
 }
 ```
 
-### 1D – Write-Pfad: JS-Bypass beibehalten (bewusste Entscheidung)
+### 1D – Write-Pfad: JS-Bypass beibehalten (bewusste Entscheidung) ✅
 
 Die aktuelle JS-Implementierung von `writeMapValues()` ist korrekt:
 - Reverse-Scaling (`raw = (scaled - offset) / factor`)
@@ -161,13 +161,13 @@ Die Rust-Version schreibt nur `uint16 big-endian` ohne Reverse-Scaling. Das **ni
 
 ---
 
-## Phase 2 – Python Service Auto-Discovery
+## Phase 2 – Python Service Auto-Discovery ✅ Abgeschlossen
 
 ### Ziel
 
 Statt manueller Registry werden Definition-JSONs automatisch aus dem Dateisystem geladen. Neue ECUs werden durch Ablegen einer JSON-Datei verfügbar, ohne Code-Änderung.
 
-### 2A – Registry durch Discovery ersetzen
+### 2A – Registry durch Discovery ersetzen ✅
 
 **Datei:** `services/ecu-engine/parse.py`
 
@@ -210,11 +210,11 @@ def _discover_definitions() -> dict[str, list[dict]]:
 _DEFINITION_REGISTRY = _discover_definitions()
 ```
 
-### 2B – `load_definitions()` anpassen
+### 2B – `load_definitions()` anpassen ✅ (keine Änderung nötig – ECU-Keys stimmen bereits überein)
 
 Fingerprint gibt `ecu_type` als `"Siemens MS43"` zurück. `load_definitions()` greift damit direkt auf die Discovery-Registry zu. Keine weitere Änderung nötig.
 
-### 2C – Fingerprint-Erweiterung Python
+### 2C – Fingerprint-Erweiterung Python ✅ (MS42-Größenbug gefixt: 512_000 → 524_288)
 
 **Datei:** `services/ecu-engine/fingerprint.py`
 
@@ -232,18 +232,18 @@ Prüfen und analog zu TS-Fingerprinting für neue ECUs erweitern. Fingerprint-En
 
 ### Überblick
 
-| Format | Priorität | Aufwand | Datei |
-|---|---|---|---|
-| JSON (raw `MapDefinition[]`) | Hoch | Klein | `json/parse-json.ts` |
-| A2L (ASAP2) | Hoch | Mittel | `a2l/parse-a2l.ts` |
-| DAMOS | Mittel | Mittel | `damos/parse-damos.ts` |
-| KP | Mittel | Klein–Groß* | `kp/parse-kp.ts` |
+| Format | Priorität | Aufwand | Datei | Status |
+|---|---|---|---|---|
+| JSON (raw `MapDefinition[]`) | Hoch | Klein | `json/parse-json.ts` | ✅ |
+| A2L (ASAP2) | Hoch | Mittel | `a2l/parse-a2l.ts` | offen |
+| DAMOS | Mittel | Mittel | `damos/parse-damos.ts` | offen (Sample fehlt) |
+| KP | Mittel | Klein–Groß* | `kp/parse-kp.ts` | offen (Sample fehlt) |
 
 *KP: Format muss anhand einer Sample-Datei verifiziert werden.
 
 Alle Parser geben `MapDefinition[]` zurück – dieselbe Pipeline wie XDF.
 
-### 3A – JSON Upload (`MapDefinition[]`)
+### 3A – JSON Upload (`MapDefinition[]`) ✅
 
 **Dateien:**
 - `packages/definition-parser/src/json/parse-json.ts`
@@ -346,7 +346,7 @@ DAMOS (Daten-Austausch-Format Motor-Steuergerät) ist Bosch-intern, existiert in
 
 ---
 
-### 3E – Upload-UI erweitern
+### 3E – Upload-UI erweitern ✅
 
 **Datei:** `apps/web/src/components/editor/XdfUploadPanel.tsx`
 
