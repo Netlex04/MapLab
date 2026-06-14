@@ -25,6 +25,9 @@ Vier parallele Zielrichtungen, die zusammen den ECU-Parsing-Kern produktionsreif
 | MS45 fehlt komplett | – | XDF liegt in `local-fixtures/`, kein internes JSON |
 | Nur XDF als Upload-Format | `xdf/parse-xdf.ts` | A2L, DAMOS, KP, JSON nicht unterstützt |
 | Kein CAL/Full-Bin-Offset-Handling | überall (Extraction + Write) | `def.offset` wird immer als Datei-Offset gelesen. CAL-only-Bins (rausgeschnittener Kalibrierungsblock) und A2L-Absolutadressen liefern dadurch falsche Werte oder Out-of-Bounds |
+| Kein `verified`-Status auf Fingerprint-Ebene | `internal/fingerprint.ts`, `match.ts` | Ein falscher Fingerprint matcht still die falsche Definition. Es gibt nur die statistische `matchDefinitions`-Bewertung + Safety-Warnungen, keine kuratierte „geprüft"-Marke |
+| Keine Definition-Level-Freigabe | `internal/*/*.json` | `confidence` existiert nur je Map. Kein Gate „diese Definition als Ganzes ist für den Pool freigegeben" |
+| Keine Provenienz bei Verifikation | `map-definition.ts`, `verify-map`-Tooling | Nirgends `verifiedBy` / `verifiedAt` / Methode. Verifikation setzt nur den `confidence`-String ohne Audit-Spur |
 
 ---
 
@@ -483,16 +486,49 @@ Manuelle Verifikation danach nötig.
 
 ### Ziel
 
-Tuner und Admins können Maps schrittweise verifizieren. Der Verifizierungsstatus ist im JSON sichtbar.
+Der **Entwickler/Kurator** kann schrittweise verifizieren — auf drei Ebenen: einzelne Map, ganze Definition, und Fingerprint. Jede Verifikation hinterlässt eine Audit-Spur (wer/wann/Methode). Der Verifizierungsstatus ist im JSON sichtbar.
 
-### 5A – Verification-Tooling (lokal)
+> **Scope (bewusst):** Diese Phase deckt **nur die Entwickler-/Kurations-Bestätigung** ab. Eine Laufzeit-Bestätigung durch den Software-Nutzer (z.B. „weak match trotzdem anwenden", andere Definition wählen) ist hier **nicht** enthalten und wäre ein separates Feature, das die Pool-`confidence` niemals anheben darf.
 
-Einfaches CLI-Script zum Setzen von `confidence: "verified"` auf geprüften Maps:
+### 5A – Verification-Tooling (lokal, drei Ebenen + Provenienz)
+
+CLI-Tool, das `confidence`/Freigabe **mit Audit-Spur** setzt. Drei Scopes:
 
 ```bash
-# scripts/verify-map.mjs <ecudefinition.json> <map-id>
-node scripts/verify-map.mjs packages/definition-parser/src/internal/ms43/ms430069.json map_kfzw_001
+# scripts/verify.mjs <scope> ...
+
+# 1) Einzelne Map verifizieren
+node scripts/verify.mjs map packages/definition-parser/src/internal/ms43/ms430069.json map_kfzw_001
+
+# 2a) Ganze Definition MIT Fingerprint freigeben (Flag im FingerprintEntry, siehe 5D)
+node scripts/verify.mjs definition ms43/ms430069
+# 2b) Ganze Definition OHNE Fingerprint freigeben (Sidecar-Manifest, siehe 5D)
+node scripts/verify.mjs definition --file packages/definition-parser/src/internal/custom-boost/custom-boost.json
+
+# 3) Fingerprint bestätigen (siehe 5D)
+node scripts/verify.mjs fingerprint MS43 MS430069
 ```
+
+Jeder Aufruf schreibt **Provenienz** (nicht nur den Status-String). Optionen: `--by <name>` (Default: `git config user.name`), `--method <rom_spotcheck|doc|cross_ecu>`, `--notes "..."`. `verifiedAt` wird als ISO-Timestamp gesetzt.
+
+**Schema-Erweiterung Provenienz** — `packages/definition-parser/src/common/map-definition.ts`:
+
+```ts
+export interface Verification {
+  verifiedBy: string
+  verifiedAt: string                                  // ISO-8601
+  method: 'rom_spotcheck' | 'doc' | 'cross_ecu' | 'import'
+  notes?: string
+}
+
+export interface MapDefinition {
+  // ... bestehend ...
+  confidence: MapConfidence
+  verification?: Verification   // NEU – gesetzt sobald confidence: 'verified'
+}
+```
+
+**Invariante:** `confidence: 'verified'` ohne `verification`-Block ist ungültig. Das CLI setzt beides atomar; eine Schema-Validierung (Phase 3A-Stil) prüft die Kopplung.
 
 ### 5B – UI: Confidence-Anzeige im MapTree
 
@@ -521,6 +557,68 @@ Aktuell: Alle `xAxis.source: "index"` – Nutzer sehen Index 0,1,2,... statt ech
 ```
 
 Kann auch `"source": "address"` sein, wenn Achswerte im ROM an bekanntem Offset liegen.
+
+### 5D – Fingerprint-Bestätigung & Definition-Level-Freigabe
+
+**Dateien:** `packages/definition-parser/src/internal/fingerprint.ts`, `packages/definition-parser/src/common/match.ts`, `packages/ecu-parser/src/lib.rs` (SIGNATURES)
+
+Heute matcht ein Fingerprint eine Definition still — egal ob der Kurator ihn je geprüft hat. Es gibt nur die statistische Bewertung in [`match.ts`](../../packages/definition-parser/src/common/match.ts) und Safety-Warnungen. Diese Phase führt eine kuratierte „geprüft"-Marke auf zwei Ebenen ein.
+
+**Fingerprint-Eintrag erweitern** (1:1-Verknüpfung ROM-Identität ↔ Definition – der natürliche Ort für beide Gates):
+
+```ts
+interface FingerprintEntry {
+  ecu: 'MS42' | 'MS43' | 'MS45'
+  softwareVersion: string
+  fileSize: number
+  checks: { offset: number; bytes: number[] }[]
+  // NEU – Kurations-Gates:
+  verified: boolean            // Kurator hat bestätigt: dieser Fingerprint erkennt diese ROM korrekt
+  approvedForPool: boolean     // diese Definition ist als Ganzes freigegeben
+  verification?: Verification  // wer/wann/Methode (Schema aus 5A)
+}
+```
+
+**Wirkung auf das Matching** (`match.ts`):
+
+- `matchStatus: 'exact'` wird **nur** vergeben, wenn der Fingerprint `verified: true` ist. Unbestätigte Fingerprints werden bei voller statistischer Übereinstimmung auf höchstens `'likely'` gedeckelt.
+- Das ergänzt die statistische Bewertung, ersetzt sie nicht: `verified` ist die Vertrauens-Obergrenze, der Score die Untergrenze.
+
+**Wirkung auf den Pool/Serving:**
+
+- Nur Definitionen mit `approvedForPool: true` werden als vertrauenswürdig ausgeliefert. Nicht-freigegebene bleiben ladbar, aber als unbestätigt markiert (kein `'exact'`, sichtbares Badge via 5B).
+- Python-Discovery (Phase 2) und Worker-Matching lesen dasselbe Flag — eine Quelle der Wahrheit.
+
+**Definition-Level-Freigabe — zwei Fälle:**
+
+Da die internen JSONs reine `MapDefinition[]`-Arrays sind, gibt es keinen Platz für definitionsweite Metadaten im Array selbst. Die Freigabe lebt darum **außerhalb** des Arrays, an einer von zwei Stellen — je nachdem, ob die Definition eine ROM-Identität hat:
+
+1. **Mit Fingerprint** (interne ECU-Definitionen, 1:1 zur SW-Version): Die Freigabe lebt im `FingerprintEntry` (`approvedForPool` oben). Kein separates Manifest nötig. Gesetzt über `verify.mjs definition <ecu/sw>`.
+
+2. **Ohne Fingerprint** (reine Nutzer-Uploads / generische Definitionen ohne ROM-Identität): kleines Sidecar-**Manifest** neben der JSON, das die Freigabe trägt:
+
+   ```jsonc
+   // packages/definition-parser/src/internal/<slug>/<slug>.manifest.json
+   {
+     "definitionFile": "<slug>.json",
+     "approvedForPool": false,
+     "label": "User upload: MS43 custom boost",
+     "verification": { "verifiedBy": "...", "verifiedAt": "...", "method": "doc" }
+   }
+   ```
+
+   Gesetzt über `verify.mjs definition --file <pfad-zur-json>`. Ohne Manifest gilt `approvedForPool: false` (Default = nicht freigegeben).
+
+**Eine gemeinsame Auflösung:** Ein Helper `getDefinitionApproval(def)` liest die Freigabe transparent — erst Fingerprint, sonst Sidecar-Manifest, sonst Default `false`. Pool-Serving, Python-Discovery (Phase 2) und Worker-Matching nutzen ausschließlich diesen Helper, damit beide Fälle dieselbe eine Quelle der Wahrheit haben.
+
+### Definition of Done Phase 5
+
+- `verify.mjs` setzt Status auf allen drei Ebenen (Map / Definition / Fingerprint) **immer zusammen mit** `verification` (wer/wann/Methode)
+- Schema-Validierung lehnt `confidence: 'verified'` ohne `verification` ab
+- Unbestätigter Fingerprint kann nie `matchStatus: 'exact'` erzeugen (Test)
+- Nur `approvedForPool: true` wird als vertrauenswürdig ausgeliefert — aufgelöst über `getDefinitionApproval()` (Fingerprint **oder** Sidecar-Manifest)
+- Fingerprint-lose Definition kann per Manifest freigegeben werden; ohne Manifest gilt `approvedForPool: false`
+- Bestehende interne JSONs ohne `verification` bleiben ladbar (Status fällt auf `'definition'`/`'likely'` zurück, kein Bruch)
 
 ---
 
@@ -638,7 +736,7 @@ Woche 3:
 
 Woche 4:
   Phase 4D    (MS42 Kategorisierung)
-  Phase 5A+5B (Verification Workflow)
+  Phase 5A+5B+5D (Verification Workflow: Map/Definition/Fingerprint + Provenienz)
 
 Offen (nach Sample-Beschaffung):
   Phase 3C    (DAMOS)
