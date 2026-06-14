@@ -19,7 +19,8 @@ Vier parallele Zielrichtungen, die zusammen den ECU-Parsing-Kern produktionsreif
 | `parseECU()` gibt immer leere Maps zurück | `ecu-parser-wasm/src/index.ts` | Nur Metadaten (checksum, size) kommen aus WASM |
 | `getHexSlice` & `computeDiff` bypassen WASM | `ecu-parser-wasm/src/index.ts` | Pure-JS-Implementierungen, WASM-Methoden ungenutzt |
 | Python-Registry ist manuell | `services/ecu-engine/parse.py` | Jede neue ECU muss in `_DEFINITION_REGISTRY` eingetragen werden |
-| MS42: alle 2875 Maps `category: "unknown"` | `internal/ms42/0110c6.json` | Kein einziger Eintrag kategorisiert |
+| MS42: alle 2875 Maps `category: "unknown"` | `internal/ms42/0110c6.json` | MS42-XDF hat keinen Kategorie-Baum + kryptische deutsche Kürzel → `guessCategory` greift nie (siehe 4D) |
+| XDF-Kategorie-Baum wird verworfen | `xdf/normalize-xdf.ts` | `categoryName` geht nur in den Such-String, wird nicht gespeichert. 61 handgepflegte MS43-Kategorien → 11 Buckets, 84 % `unknown` (siehe 4D) |
 | MS43: kein `confidence: "verified"` | `internal/ms43/ms430069.json` | Alle 3730 Einträge `"definition"` |
 | Keine Achswerte | beide JSONs | Alle `xAxis.source: "index"` – echte Achswerte fehlen |
 | MS45 fehlt komplett | – | XDF liegt in `local-fixtures/`, kein internes JSON |
@@ -466,19 +467,85 @@ packages/definition-parser/src/internal/
     ...
 ```
 
-### 4D – MS42 Kategorisierung
+### 4D – Kategorisierung: Hybrid-Modell (sourceCategory + normalisierter Enum)
 
-MS42: 2875 Einträge, alle `category: "unknown"`. Das ist der größte Qualitätsmangel bei den bestehenden Definitionen.
+**Problem (gemessen an den XDF-Quellen in `local-fixtures/definitions/`):**
 
-**Ansatz:** Wenn MS43-Einträge bereits kategorisiert sind, können Maps mit gleichen Namen in MS42 die Kategorie übernehmen (MS42 und MS43 teilen viele Map-Namen). Script:
+| | MS43 | MS42 |
+|---|---|---|
+| XDF-Kategorie-Baum | **61 Kategorien**, handgepflegt | **keiner** |
+| kategorisiert (intern, Status quo) | 593 / 3730 (16 %) | 0 / 2875 (0 %) |
+| Map-Namensschema | `c_abc_inc_*` (codiert) | deutsche Kürzel `zw_/ti_/nwsoll_` |
 
-```python
-# scripts/sync-categories-ms42.py (lokales Utility)
-# Liest ms43/ms430069.json, baut name → category lookup
-# Überträgt categories auf ms42/0110c6.json wo name übereinstimmt
+**Verworfener Ansatz (alt):** Kategorie-Übernahme MS43→MS42 per Namensabgleich. Messung: exakte Namensüberlappung **3 von 2876** — die Schemata sind komplett verschieden. Wertlos.
+
+**Wurzelursache:** `guessCategory` reicht den XDF-Kategorienamen nur in einen Such-String und **speichert den Baum nicht** ([normalize-xdf.ts:204-207](../../packages/definition-parser/src/xdf/normalize-xdf.ts#L204)). Das beste Signal (61 handgemachte MS43-Kategorien) wird weggeworfen und in 11 Buckets gepresst, davon 84 % `unknown`.
+
+**Lösung: zwei Felder statt einem.**
+
+```ts
+// packages/definition-parser/src/common/map-definition.ts
+interface MapDefinition {
+  category: MapCategory       // normalisiert, 11 Buckets – für Logik
+  sourceCategory?: string[]   // NEU: XDF-Kategoriepfad verbatim – dynamisch, für UI
+}
 ```
 
-Manuelle Verifikation danach nötig.
+- **`sourceCategory`** — der XDF-Kategorie-Baum 1:1 übernommen (verlustfrei, dynamisch, kein Raten). UI gruppiert danach: bei MS43 sofort 61 echte Ordner statt 11 Buckets. Maps mit mehreren `CATEGORYMEM` → Array.
+- **`category`** (normalisierter Enum) bleibt **erhalten** und wird mit klarer Priorität abgeleitet:
+  1. **`sourceCategory` → Enum-Lookup** (kuratierte Tabelle, z.B. `Ignition→ignition`, `Injection→fuel`, `Fuel System→fuel`, `Knock→ignition`, `Lambda Controller→lambda`). Deckt MS43 nahezu vollständig statt 16 %.
+  2. sonst Titel/Beschreibung-Keywords (heutiges `guessCategory`).
+  3. sonst **Mnemonic-Wörterbuch** (deutsche Bosch/Siemens-Kürzel, für baumlose Defs wie MS42).
+  4. sonst `unknown`.
+
+**Warum der Enum erhalten bleibt (Hybrid, nicht voll dynamisch):**
+- Safety-Checks ([safety-checks.ts:29](../../packages/definition-parser/src/common/safety-checks.ts#L29)) brauchen ein **festes** Vokabular für `CATEGORY_BOUNDS` (Wertebereichs-Plausibilität). Freie Strings brechen das.
+- ECU-übergreifendes Filtern/Suchen braucht eine gemeinsame Achse (`Ignition` vs. `zw_*` vs. `Zündung` vereinheitlichen sich nicht von selbst).
+
+**Mnemonic-Wörterbuch (Schritt 3) – für MS42 & andere deutsch benannte ECUs:**
+Token-/Präfix-basiert mit Anchoring (`^zw_`, `_zw_`), nicht Volltext. Grobe Abschätzung auf MS42: ~38 % erreichbar (`zw→ignition`, `ti→fuel`, `nwsoll→vanos`, `lam/lsh→lambda`, `ll→idle`, `ladedr/pld→boost`, `dk/ped→driver_wish`, `nmax→limit`).
+**Achtung Präzision:** kurze Tokens (`mi`, `ml`, `dk`, `ti`) erzeugen leicht Fehltreffer. Lieber konservativ + Test gegen False-Positives, denn *falsch* kategorisiert ist schlimmer als `unknown` (Safety-Bounds greifen dann falsch).
+
+**Enum-Erweiterung (final):** `MapCategory` wächst von 11 auf **14**:
+
+```ts
+// + thermal, emissions, transmission
+type MapCategory =
+  | 'ignition' | 'fuel' | 'lambda' | 'torque' | 'driver_wish'
+  | 'limit' | 'vanos' | 'idle' | 'maf' | 'boost' | 'diagnostic'
+  | 'thermal' | 'emissions' | 'transmission'   // NEU
+  | 'unknown'
+```
+
+Begründung: nur Buckets mit echtem, ECU-übergreifendem Konsumenten (`transmission` wegen DSG/TCU, `thermal`/`emissions` wegen Schutz-/Delete-Tuning). Bewusst **nicht** aufgenommen: `electrical`/`sensor`/`meta` — selten getunt, kaum Filterwert, würden nur `unknown` umetikettieren. Die volle Reichhaltigkeit trägt `sourceCategory`.
+
+**`CATEGORY_NAME_MAP` (Schritt 1 des Lookups) – Entwurf aus den 61 MS43-Kategorien:**
+
+| XDF-Kategorie(n) | → MapCategory |
+|---|---|
+| Ignition, Knock | `ignition` |
+| Injection, Fuel System, Fuel Pump, Warm Up, Trailing Throttle Fuel Cut | `fuel` |
+| Lambda Controller | `lambda` |
+| Torque, Anti Jerk, Torsion Correction | `torque` |
+| Throttle, Cruise Control | `driver_wish` |
+| Vanos | `vanos` |
+| Idle Speed | `idle` |
+| Airflow Meter, Intake Air, Intake Model | `maf` |
+| Catalyst, Secondary Air, Canister Purge, DMTL | `emissions` |
+| Coolant Temperature, Coolant Fan, Oil Temperature, eThermostat, Exhaust Gas Temperature | `thermal` |
+| AT-Gearbox, Gear Recognition | `transmission` |
+| Diagnostic Trouble Codes, DTC Suppression, OBD, Misfire, System Diagnosis, System Monitoring | `diagnostic` |
+
+**Homogenitäts-Regel (wichtig):** Gemischte Kategorien werden **nicht** in `CATEGORY_NAME_MAP` aufgenommen, damit sie auf Schritt 2/3 (Name/Mnemonic) durchfallen statt alle Maps falsch zu bucketieren. Betrifft u.a.: *Full Load Detection, Engine Speed, Vehicle Speed, Limp Home* (Sensor + Begrenzer gemischt) sowie alle reinen Sensor-/Meta-Kategorien (*Axis, Checksums, Software Version, Sensor Definitions, Battery Voltage, …*) → bleiben `unknown`, behalten aber ihren `sourceCategory`-Namen.
+
+**Migration:** Bestehende interne JSONs einmalig aus den XDFs neu generieren, damit sie `sourceCategory` tragen. `category` wird dabei über die neue Prioritätskette neu abgeleitet.
+
+**Definition of Done:**
+- `MapCategory` um `thermal`/`emissions`/`transmission` erweitert; `CATEGORY_NAME_MAP` enthält nur homogene Kategorien
+- `sourceCategory` wird beim XDF-Import verbatim erhalten (inkl. Mehrfach-Zugehörigkeit als Array)
+- Enum-Ableitung folgt der 4-stufigen Priorität; MS43 deutlich >16 % kategorisiert
+- Mnemonic-Wörterbuch hat Tests gegen Fehltreffer; konservativ bei mehrdeutigen Kurztokens
+- Interne JSONs neu generiert (mit `sourceCategory`), Map-IDs unverändert
 
 ---
 
@@ -735,7 +802,7 @@ Woche 3:
   Phase 4C    (weitere ECUs aus vorhandenen Dateien)
 
 Woche 4:
-  Phase 4D    (MS42 Kategorisierung)
+  Phase 4D    (Kategorisierung: sourceCategory erhalten + Enum-Ableitung + Mnemonic-Wörterbuch)
   Phase 5A+5B+5D (Verification Workflow: Map/Definition/Fingerprint + Provenienz)
 
 Offen (nach Sample-Beschaffung):
