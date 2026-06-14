@@ -24,6 +24,7 @@ Vier parallele Zielrichtungen, die zusammen den ECU-Parsing-Kern produktionsreif
 | Keine Achswerte | beide JSONs | Alle `xAxis.source: "index"` – echte Achswerte fehlen |
 | MS45 fehlt komplett | – | XDF liegt in `local-fixtures/`, kein internes JSON |
 | Nur XDF als Upload-Format | `xdf/parse-xdf.ts` | A2L, DAMOS, KP, JSON nicht unterstützt |
+| Kein CAL/Full-Bin-Offset-Handling | überall (Extraction + Write) | `def.offset` wird immer als Datei-Offset gelesen. CAL-only-Bins (rausgeschnittener Kalibrierungsblock) und A2L-Absolutadressen liefern dadurch falsche Werte oder Out-of-Bounds |
 
 ---
 
@@ -32,14 +33,16 @@ Vier parallele Zielrichtungen, die zusammen den ECU-Parsing-Kern produktionsreif
 ```
 [Phase 1: WASM Verdrahtung]
           ↓
-[Phase 2: Python Auto-Discovery]   [Phase 3: Neue Formate]
+[Phase 2: Python Auto-Discovery]   [Phase 6: CAL/Full-Bin Adressraum]
+          ↓                                  ↓
+          │                         [Phase 3: Neue Formate (A2L nutzt 6)]
           ↓                                  ↓
 [Phase 4: Definition Expansion]  ←───────────┘
           ↓
 [Phase 5: Verification Workflow]
 ```
 
-Phase 1 ist Voraussetzung für Phase 4 (saubere IDs). Phase 3 ist unabhängig von 1+2 und kann parallel laufen.
+Phase 1 ist Voraussetzung für Phase 4 (saubere IDs). Phase 6 ist Voraussetzung für A2L (3B) und Bosch-ECUs (4C), weil deren Adressen nicht datei-absolut sind. Phase 2 läuft unabhängig parallel.
 
 ---
 
@@ -287,7 +290,7 @@ A2L ist ein standardisiertes Textformat (ASAP2 Spezifikation). Relevante A2L-Ele
 **Parsing-Strategie:**
 A2L ist kein XML. Es ist ein hierarchisches Keyword-Format. Parser nutzt reguläre String-Verarbeitung, keine XML-Bibliothek. Bekannte Libraries: `a2lfile` (Rust/Python), aber für Browser-Kompatibilität eine TS-Implementierung bauen.
 
-**Wichtig:** A2L enthält absolute ECU-Adressen (z.B. `0x400000`). Die müssen gegen den ROM-Speicherbereich normalisiert werden. Basiert auf `MEMORY_SEGMENT`-Definitionen im A2L.
+**Wichtig:** A2L enthält absolute ECU-Adressen (z.B. `0x400000`). Die müssen gegen den ROM-Speicherbereich normalisiert werden. Basiert auf `MEMORY_SEGMENT`-Definitionen im A2L. Das Normalisieren ist Teil des allgemeinen Adressraum-Handlings → siehe **Phase 6**: A2L-Adressen werden mit `addressSpace: "ecu"` und der `MEMORY_SEGMENT`-Basis abgelegt, statt sie beim Import hart in Datei-Offsets umzurechnen.
 
 ```ts
 export function parseA2L(source: string): {
@@ -521,6 +524,102 @@ Kann auch `"source": "address"` sein, wenn Achswerte im ROM an bekanntem Offset 
 
 ---
 
+## Phase 6 – CAL/Full-Bin Adressraum-Handling
+
+### Ziel
+
+Dieselbe Definition funktioniert für **beide** Bin-Varianten desselben Steuergeräts:
+
+| Variante | Inhalt | Beispiel-Größe |
+|---|---|---|
+| **Full-Bin** | komplettes Flash-Image (Bootloader + Programm + Kalibrierung) | MS43 `0x80000` |
+| **CAL-only** | nur der herausgeschnittene Kalibrierungsblock | MS4x `0x10000` |
+
+Eine Map-Adresse ist nur sinnvoll *relativ zu einem Adressraum*. Lädt man eine CAL-only-Datei, liegt derselbe Kalibrierungsblock bei Datei-Offset 0 statt mitten in der Full-Bin – `def.offset` zeigt dann ins Leere. Aktuell behandelt MapLab jeden `offset` als Datei-Offset; das ist für die heutigen BMW-Full-ROMs (fixe Größe) zufällig korrekt, bricht aber bei CAL-only-Bins, A2L-Importen und Bosch-ECUs (ME7/MED17, wo CAL-only-Flashes üblich sind).
+
+> **Vorbild Konkurrenz:** tune-editor löst das mit `isCalOnly()` + einem zentralen `calOffset`, der bei *jedem* Lese-/Schreibzugriff auf die Definitions-Adresse aufaddiert wird (`addressToOffset(address, calOffset)`). Es kennt sogar Sub-Varianten innerhalb von Full-Bins (DSG: zusätzlicher `-0x10000`/`-0x30000` je nach EPK-Fundort). Lehre: Variantenerkennung muss feinkörniger sein als nur „CAL vs. Full", und der Offset darf **nur an einer einzigen Stelle** aufaddiert werden.
+
+### Bestätigte Entscheidungen (final)
+
+1. **Default `addressSpace: 'file'`** — bestehende interne MS42/MS43-JSONs bleiben unverändert gültig, keine Migration. Neue interne Definitionen *sollen* wo möglich `'cal'` verwenden (portabel über Full-/CAL-Varianten), aber `'file'` bleibt der abwärtskompatible Default.
+2. **Write-Pfad nutzt zwingend denselben `resolveOffset` wie der Lese-Pfad.** Ein Auseinanderlaufen würde still an die falsche Adresse schreiben. Abgesichert über den Round-Trip-Test (Byte-Diff == 0) in der Definition of Done.
+
+### Designentscheidung: deklarierter Adressraum + ein zentraler `resolveOffset`
+
+1. **Definition deklariert ihren Adressraum** (statt Datei-Offsets hart einzubacken). Neues optionales Feld in `MapDefinition` und `AxisDefinition`:
+
+   ```ts
+   // packages/definition-parser/src/common/map-definition.ts
+   export type AddressSpace =
+     | 'file'   // Offset ist absolut in DIESER Datei (heutiges Verhalten, Default)
+     | 'cal'    // Offset ist relativ zum Beginn des Kalibrierungsblocks (robust, portabel)
+     | 'ecu'    // Offset ist eine absolute ECU-/ROM-Adresse (A2L, DAMOS)
+   ```
+
+   `compatibility.addressSpace?: AddressSpace` (Default `'file'` → bestehende interne JSONs bleiben unverändert gültig, keine Migration nötig).
+
+2. **Bin-Kontext wird beim Laden bestimmt** – Erweiterung des Fingerprints (`packages/definition-parser/src/internal/fingerprint.ts`, Rust `SIGNATURES` in `packages/ecu-parser/src/lib.rs`). Fingerprint liefert zusätzlich:
+
+   ```ts
+   interface BinContext {
+     variant: 'full' | 'cal'      // erkannt über Dateigröße + CAL-Marker (z.B. ".DAT")
+     calBase: number              // Datei-Offset, an dem der Kalibrierungsblock beginnt
+     ecuBase: number              // ROM-Basisadresse des Kalibrierungsblocks (für 'ecu'-Defs)
+   }
+   ```
+
+   CAL-Erkennung pro ECU als **Daten**, nicht als Code (analog zur Fingerprint-Tabelle): `{ ecu, fullSize, calSize, calMarker, calMarkerOffset, calBase, ecuBase }`.
+
+3. **Ein einziger `resolveOffset`** rechnet Definitions-Adresse → tatsächlichen Datei-Offset. Wird von WASM-Extraction, TS-Extraction *und* Write-Pfad identisch genutzt:
+
+   ```ts
+   // packages/definition-parser/src/common/resolve-offset.ts (NEU)
+   export function resolveOffset(
+     defOffset: number,
+     space: AddressSpace,
+     ctx: BinContext,
+   ): number {
+     switch (space) {
+       case 'file': return defOffset
+       case 'cal':  return defOffset + ctx.calBase
+       case 'ecu':  return defOffset - ctx.ecuBase + ctx.calBase
+     }
+   }
+   ```
+
+### 6A – Variantenerkennung im Fingerprint
+
+**Dateien:** `packages/definition-parser/src/internal/fingerprint.ts`, `packages/ecu-parser/src/lib.rs`
+
+- Fingerprint gibt zusätzlich `BinContext` zurück (`variant`, `calBase`, `ecuBase`).
+- Erkennung über Dateigröße (`== fullSize` → full, `== calSize` → cal) plus CAL-Marker-Check (Bytes an `calMarkerOffset`), damit beschnittene/abweichende Dateien nicht falsch klassifiziert werden.
+- Pro ECU als Daten-Tabelle, parallel zur bestehenden Signatur-Tabelle.
+
+### 6B – `resolveOffset` zentral + überall durchziehen
+
+**Dateien:** neu `common/resolve-offset.ts`; Aufrufer: `apps/web/src/workers/ecu-parser.worker.ts`, `packages/ecu-parser-wasm/src/index.ts` (`extractMapsFromDefinitionsWasm`, `writeMapValues`, `getHexSlice`), Rust `extract_maps_from_definitions`.
+
+- `BinContext` wird beim `parse` einmal ermittelt und an Extraction **und** Write-Pfad durchgereicht.
+- `resolveOffset` auf `def.offset` **und** auf `xAxis.offset`/`yAxis.offset` anwenden (`source: 'address'`).
+- WASM bekommt den Kontext als Parameter (kein zweiter Code-Pfad mit eigener Offset-Logik).
+- Write-Pfad (`writeMapValues`, JS-autoritativ laut Phase 1D) nutzt **denselben** `resolveOffset` – sonst schreibt man an eine andere Adresse als man liest.
+
+### 6C – Import-Parser setzen `addressSpace` korrekt
+
+- **A2L** (3B): `addressSpace: 'ecu'`, `ecuBase` aus `MEMORY_SEGMENT`. Keine Hart-Umrechnung beim Import → Definition bleibt für Full- und CAL-Varianten gültig.
+- **XDF / interne JSONs:** `addressSpace: 'file'` (Status quo).
+- **Empfehlung für neue interne Definitionen:** wo möglich `'cal'` verwenden, weil dieselbe JSON dann CAL-only- *und* Full-Bin desselben Softwarestands abdeckt.
+
+### Definition of Done Phase 6
+
+- Laden einer CAL-only-MS43 (`0x10000`, `.DAT`-Marker) zeigt dieselben Map-Werte wie die Full-Bin
+- A2L-importierte Definition (absolute Adressen) liest gegen ein Full-ROM korrekte Werte
+- Lese- und Schreib-Offset sind nachweislich identisch (Round-Trip-Test: read → write same value → byte-diff == 0)
+- Bestehende interne MS42/MS43-JSONs funktionieren unverändert (Default `'file'`)
+- Spot-Check: unbekannte/beschnittene Datei wird nicht fälschlich als CAL erkannt
+
+---
+
 ## Implementierungsreihenfolge (empfohlen)
 
 ```
@@ -533,7 +632,8 @@ Woche 2:
   Phase 4B    (MS45 Definition + Fingerprint)
 
 Woche 3:
-  Phase 3B    (A2L Parser)
+  Phase 6A+6B (CAL/Full-Bin Adressraum – vor A2L, da A2L darauf aufbaut)
+  Phase 3B    (A2L Parser, nutzt addressSpace 'ecu' aus Phase 6)
   Phase 4C    (weitere ECUs aus vorhandenen Dateien)
 
 Woche 4:
