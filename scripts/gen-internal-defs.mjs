@@ -11,7 +11,7 @@
  * They contain no ROM data – only map metadata (offsets, dimensions, scaling).
  */
 
-import { XMLParser } from '/Users/moritzglueck/Desktop/Coding Projects/MapLab/node_modules/.pnpm/fast-xml-parser@5.7.3/node_modules/fast-xml-parser/src/fxp.js'
+import { XMLParser } from 'fast-xml-parser'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
@@ -173,7 +173,7 @@ function normalizeAxis(axisEl, tableFlags, defaults, romBaseOffset) {
 
 // ─── XDF → MapDefinition[] ────────────────────────────────────────────────────
 
-function processXdf(xdfPath, xdfName, ecuType, softwareVersion) {
+function processXdf(xdfPath, xdfName, ecuType, softwareVersion, expectedRomSize) {
   const xml = readFileSync(xdfPath, 'utf8')
   const parser = new XMLParser(FXP_OPTS)
   const root = parser.parse(xml).XDFFORMAT
@@ -255,7 +255,7 @@ function processXdf(xdfPath, xdfName, ecuType, softwareVersion) {
       compatibility: {
         ecu: ecuType,
         softwareVersion,
-        expectedFileSize: 524288,
+        expectedFileSize: expectedRomSize,
       },
       confidence: 'definition',
     }
@@ -312,7 +312,7 @@ function processXdf(xdfPath, xdfName, ecuType, softwareVersion) {
       compatibility: {
         ecu: ecuType,
         softwareVersion,
-        expectedFileSize: 524288,
+        expectedFileSize: expectedRomSize,
       },
       confidence: 'definition',
     }
@@ -356,6 +356,7 @@ for (const job of JOBS) {
       job.xdfName,
       job.ecuType,
       job.softwareVersion,
+      job.expectedRomSize,
     )
 
     mkdirSync(job.outDir, { recursive: true })

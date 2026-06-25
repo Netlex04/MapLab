@@ -18,6 +18,7 @@
     "wasm:build": "wasm-pack build packages/ecu-parser --target web --out-dir $PWD/packages/ecu-parser-wasm/wasm && mkdir -p apps/web/public/wasm && cp packages/ecu-parser-wasm/wasm/ecu_parser.js packages/ecu-parser-wasm/wasm/ecu_parser_bg.wasm apps/web/public/wasm/"
   },
   "devDependencies": {
+    "fast-xml-parser": "^5.7.3",
     "turbo": "^2.5.4",
     "prettier": "^3.5.3",
     "typescript": "^5.8.3"
